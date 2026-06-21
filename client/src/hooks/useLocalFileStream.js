@@ -29,6 +29,10 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
   const [streamError,    setStreamError]    = useState(null);
   const [streamProgress, setStreamProgress] = useState(0); // 0–100
 
+  // HOST: per-peer send progress — Map<peerId, number (0–100)>
+  // Exposed so the host UI can show which participants are loading
+  const [hostSendProgress, setHostSendProgress] = useState(new Map());
+
   // HOST: track which peers we've already started sending to
   const sentToPeers = useRef(new Set());
   // HOST: always read the latest file inside callbacks/listeners without
@@ -50,6 +54,9 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
     if (sentToPeers.current.has(peerId)) return;
     sentToPeers.current.add(peerId);
 
+    // Track progress for this peer — start at 0
+    setHostSendProgress((prev) => new Map(prev).set(peerId, 0));
+
     // 1. Metadata
     dc.send(JSON.stringify({
       type: 'file-stream-meta',
@@ -64,16 +71,39 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
       while (dc.bufferedAmount > 8 * 1024 * 1024) {
         await new Promise(r => setTimeout(r, 30));
       }
-      if (dc.readyState !== 'open') return;
+      if (dc.readyState !== 'open') {
+        // Connection lost mid-stream — clean up progress
+        setHostSendProgress((prev) => {
+          const next = new Map(prev);
+          next.delete(peerId);
+          return next;
+        });
+        return;
+      }
 
       const slice  = f.slice(offset, offset + CHUNK_SIZE);
       const buffer = await slice.arrayBuffer();
       dc.send(buffer);
       offset += buffer.byteLength;
+
+      // Update send progress
+      const pct = Math.round((offset / f.size) * 100);
+      setHostSendProgress((prev) => new Map(prev).set(peerId, pct));
     }
 
     // 3. End sentinel
     dc.send(JSON.stringify({ type: 'file-stream-end' }));
+
+    // Mark as complete — keep at 100 briefly so the UI shows "done",
+    // then remove after a short delay
+    setHostSendProgress((prev) => new Map(prev).set(peerId, 100));
+    setTimeout(() => {
+      setHostSendProgress((prev) => {
+        const next = new Map(prev);
+        next.delete(peerId);
+        return next;
+      });
+    }, 3000);
   }, []);
 
   // ── HOST: listen for an explicit "send me the file" request from each
@@ -222,5 +252,5 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamUrl]);
 
-  return { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer };
+  return { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer, hostSendProgress };
 }

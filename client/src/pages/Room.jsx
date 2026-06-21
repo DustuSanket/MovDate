@@ -71,6 +71,7 @@ export default function Room() {
     videoEventBus,
     pauseRequests,
     pauseRequestDenied,
+    reconnectToken,
     loadVideo,
     play,
     pause,
@@ -113,14 +114,28 @@ export default function Room() {
     switchSpeaker,
     requestPermission,
   } = useLocalMedia({ permissions: mediaPerms });
-  const { remoteStreams, replaceLocalTrack, dataChannels } = useMeshCall({ you, participants, localStream });
+  const { remoteStreams, replaceLocalTrack, dataChannels } = useMeshCall({ you, participants, localStream, reconnectToken });
 
-  const { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer } = useLocalFileStream({
+  const { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer, hostSendProgress } = useLocalFileStream({
     isHost,
     dataChannels,
     file: hostFile,
     wantStream: !isHost && localFileMode === 'stream',
   });
+
+  // ── 60-second countdown for cold-start connecting screen ──
+  const [connectCountdown, setConnectCountdown] = useState(60);
+  useEffect(() => {
+    if (status !== 'connecting' || !name) return undefined;
+    setConnectCountdown(60);
+    const timer = setInterval(() => {
+      setConnectCountdown((prev) => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [status, name]);
 
   useEffect(() => {
     if (!you) return;
@@ -182,6 +197,11 @@ export default function Room() {
     return () => clearInterval(interval);
   }, [isHost, video?.isPlaying, sendHeartbeat]);
 
+  // Guard: when the host picks a local file we set a flag so the video?.url
+  // change effect doesn't revoke the blob URL we JUST created. The flag is
+  // set before loadVideo() and cleared after the effect runs.
+  const hostLoadingLocalRef = useRef(false);
+
   useEffect(() => {
     setAutoplayBlocked(false);
     setMutedAutoplay(false);
@@ -193,8 +213,14 @@ export default function Room() {
       setLocalPromptDismissed(false);
       setLocalFileUrl(null);
     } else if (!video?.url?.startsWith?.('local:')) {
+      // Switching away from a local file to YouTube/URL — clean up
+      if (!hostLoadingLocalRef.current && localFileUrl) {
+        URL.revokeObjectURL(localFileUrl);
+        setLocalFileUrl(null);
+      }
       setHostFile(null);
     }
+    hostLoadingLocalRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video?.url, isHost]);
 
@@ -291,12 +317,17 @@ export default function Room() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (localFileUrl) URL.revokeObjectURL(localFileUrl);
+    // Revoke the previous blob URL ONLY now that we have a replacement
+    const oldUrl = localFileUrl;
 
     setHostFile(file);
     const objectUrl = URL.createObjectURL(file);
     setLocalFileUrl(objectUrl);
     setLocalPromptDismissed(false);
+    setPlaybackError(false);
+
+    // Tell the video?.url effect NOT to revoke the URL we just set
+    hostLoadingLocalRef.current = true;
 
     const parsed = {
       type: 'file',
@@ -307,7 +338,10 @@ export default function Room() {
     loadVideo(parsed);
     setDuration(0);
     setDisplayTime(0);
-    setPlaybackError(false);
+
+    // Revoke the old URL after a short delay so the <video> element
+    // has time to detach from it before the browser invalidates it
+    if (oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 200);
 
     event.target.value = '';
   }
@@ -436,7 +470,7 @@ export default function Room() {
 
   // ─── Screens before the main room UI ───────────────────────────────────────
 
-  if (!name) {
+   if (!name) {
     return (
       <div className="join-gate">
         <div className="home-card">
@@ -454,6 +488,36 @@ export default function Room() {
             />
             <button type="submit">Join</button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'connecting') {
+    const pct = ((60 - connectCountdown) / 60) * 100;
+    return (
+      <div className="join-gate">
+        <div className="home-card connecting-card">
+          <div className="connecting-ring-wrap">
+            <svg className="connecting-ring" viewBox="0 0 100 100">
+              <circle className="connecting-ring-bg" cx="50" cy="50" r="42" />
+              <circle
+                className="connecting-ring-fill"
+                cx="50" cy="50" r="42"
+                style={{ strokeDashoffset: `${264 - (264 * pct) / 100}` }}
+              />
+            </svg>
+            <span className="connecting-countdown">{connectCountdown}s</span>
+          </div>
+          <h2>Joining room…</h2>
+          <p className="connecting-desc">
+            Waking up the server — this can take up to a minute on the first
+            connection. Hang tight!
+          </p>
+          <p className="waiting-room-id">Room: <strong>{roomId}</strong></p>
+          <div className="connecting-dots" aria-hidden="true">
+            <span /><span /><span />
+          </div>
         </div>
       </div>
     );
@@ -544,68 +608,11 @@ export default function Room() {
         </div>
       </header>
 
-      {/* Waiting-room knock toasts — host sees these */}
-      {isHost && waitingKnocks.length > 0 && (
-        <div className="pause-request-stack">
-          {waitingKnocks.map((knock) => (
-            <div key={knock.socketId} className="pause-request-toast knock-toast">
-              <span>
-                <strong>{knock.name}</strong> wants to join
-              </span>
-              <button
-                type="button"
-                className="pause-req-btn pause-req-btn--approve"
-                onClick={() => admitParticipant(knock.socketId)}
-              >
-                Admit
-              </button>
-              <button
-                type="button"
-                className="pause-req-btn pause-req-btn--deny"
-                onClick={() => rejectParticipant(knock.socketId)}
-              >
-                Reject
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Host: pause-request toasts */}
-      {isHost && pauseRequests.length > 0 && (
-        <div className="pause-request-stack">
-          {pauseRequests.map((req) => (
-            <div key={req.fromId} className="pause-request-toast">
-              <span>
-                <strong>{req.fromName}</strong> wants to pause
-              </span>
-              <button
-                type="button"
-                className="pause-req-btn pause-req-btn--approve"
-                onClick={() => handlePauseRequestApprove(req.fromId)}
-              >
-                Pause
-              </button>
-              <button
-                type="button"
-                className="pause-req-btn pause-req-btn--deny"
-                onClick={() => handlePauseRequestDeny(req.fromId)}
-              >
-                Ignore
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Participant: feedback when request was denied */}
-      {!isHost && pauseRequestDenied && (
-        <div className="pause-request-stack">
-          <div className="pause-request-toast pause-request-toast--denied">
-            Host kept the video playing.
-          </div>
-        </div>
-      )}
+      {/* Waiting-room knock toasts + pause-request toasts are rendered
+          inside video-stage-wrap (below) so they remain visible during
+          fullscreen — the Fullscreen API only shows children of the
+          fullscreen element, so placing them here as siblings would
+          make them invisible when the host enters full screen. */}
 
       <div className="room-body">
         <section className="room-main">
@@ -624,6 +631,69 @@ export default function Room() {
               onMutedAutoplay={() => setMutedAutoplay(true)}
               onPlaybackError={() => setPlaybackError(true)}
             />
+
+            {/* Waiting-room knock toasts — host sees these (inside stage-wrap for fullscreen visibility) */}
+            {isHost && waitingKnocks.length > 0 && (
+              <div className="pause-request-stack">
+                {waitingKnocks.map((knock) => (
+                  <div key={knock.socketId} className="pause-request-toast knock-toast">
+                    <span>
+                      <strong>{knock.name}</strong> wants to join
+                    </span>
+                    <button
+                      type="button"
+                      className="pause-req-btn pause-req-btn--approve"
+                      onClick={() => admitParticipant(knock.socketId)}
+                    >
+                      Admit
+                    </button>
+                    <button
+                      type="button"
+                      className="pause-req-btn pause-req-btn--deny"
+                      onClick={() => rejectParticipant(knock.socketId)}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Host: pause-request toasts */}
+            {isHost && pauseRequests.length > 0 && (
+              <div className="pause-request-stack">
+                {pauseRequests.map((req) => (
+                  <div key={req.fromId} className="pause-request-toast">
+                    <span>
+                      <strong>{req.fromName}</strong> wants to pause
+                    </span>
+                    <button
+                      type="button"
+                      className="pause-req-btn pause-req-btn--approve"
+                      onClick={() => handlePauseRequestApprove(req.fromId)}
+                    >
+                      Pause
+                    </button>
+                    <button
+                      type="button"
+                      className="pause-req-btn pause-req-btn--deny"
+                      onClick={() => handlePauseRequestDeny(req.fromId)}
+                    >
+                      Ignore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Participant: feedback when request was denied */}
+            {!isHost && pauseRequestDenied && (
+              <div className="pause-request-stack">
+                <div className="pause-request-toast pause-request-toast--denied">
+                  Host kept the video playing.
+                </div>
+              </div>
+            )}
 
             {/* Participant: local-file source prompt / switch pill */}
             {!isHost && isLocalFileSentinel && (
@@ -672,6 +742,27 @@ export default function Room() {
                 This browser can't play that file — it's likely an unsupported codec inside the
                 container. {isHost ? 'Try loading an .mp4 link instead.' : 'Ask the host to load an .mp4 link instead.'}
               </p>
+            )}
+
+            {/* Host: show when participants are receiving the file stream */}
+            {isHost && hostSendProgress.size > 0 && (
+              <div className="host-stream-status">
+                {[...hostSendProgress.entries()].map(([peerId, pct]) => {
+                  const peer = participants.find((p) => p.id === peerId);
+                  const peerName = peer?.name || 'Someone';
+                  return (
+                    <div key={peerId} className="host-stream-status-item">
+                      <span className="host-stream-name">{peerName}</span>
+                      <div className="host-stream-bar">
+                        <div className="host-stream-bar-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="host-stream-pct">
+                        {pct >= 100 ? '✓ Ready' : `${pct}%`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             <PlayerControls

@@ -13,6 +13,11 @@ export function useRoomSocket(roomId, name, options = {}) {
   const [isProtected, setIsProtected] = useState(false);
   const [hostSecret, setHostSecret] = useState(null);
 
+  // Incremented on every socket reconnection (not the first connect).
+  // useMeshCall watches this to tear down stale WebRTC connections.
+  const [reconnectToken, setReconnectToken] = useState(0);
+  const hasConnectedRef = useRef(false);
+
   // Persistent clientId to help server deduplicate fast-reconnect ghosts
   const clientIdRef = useRef(null);
   if (!clientIdRef.current) {
@@ -52,6 +57,13 @@ export function useRoomSocket(roomId, name, options = {}) {
     socket.connect();
 
     function handleConnect() {
+      // If this is a RE-connection (not the first connect), bump the
+      // reconnectToken so useMeshCall tears down all stale peers.
+      if (hasConnectedRef.current) {
+        setReconnectToken((t) => t + 1);
+      }
+      hasConnectedRef.current = true;
+
       socket.emit('room:join', { 
         roomId, 
         name, 
@@ -307,6 +319,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     videoEventBus: videoEventBusRef.current,
     pauseRequests,
     pauseRequestDenied,
+    reconnectToken,
     loadVideo,
     play,
     pause,

@@ -12,6 +12,22 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   const pendingRef = useRef(null);
   const hasPlayedRef = useRef(false);
 
+  // Guards against transient null source during source transitions.
+  // When the host switches from YouTube to local file (or vice versa),
+  // the source prop can briefly flash to null before the new value is set.
+  // This ref keeps the last valid source to prevent a jarring flash of
+  // the "No video loaded" placeholder and an accidental onError call
+  // from a revoked blob URL.
+  const lastSourceRef = useRef(null);
+  const sourceTransitionRef = useRef(false);
+  if (source) {
+    lastSourceRef.current = source;
+    sourceTransitionRef.current = false;
+  } else if (lastSourceRef.current) {
+    // Source went null but we had something before — likely a transition
+    sourceTransitionRef.current = true;
+  }
+
   // Tracks the last authoritative state so non-hosts can snap back
   const authoritativeRef = useRef({ kind: 'pause', time: 0 });
 
@@ -332,7 +348,11 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   }, [source?.type, source?.url]);
 
   // ── Render ─────────────────────────────────────────────────────────
-  if (!source) {
+  // Use the real source if available, or keep showing the last source
+  // during a brief transition (avoids flash of empty placeholder).
+  const renderSource = source || (sourceTransitionRef.current ? lastSourceRef.current : null);
+
+  if (!renderSource) {
     return (
       <div className="video-stage video-stage--empty">
         <p>No video loaded yet.</p>
@@ -340,7 +360,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     );
   }
 
-  if (source.type === 'youtube') {
+  if (renderSource.type === 'youtube') {
     return (
       <div className="video-stage">
         <div
@@ -355,22 +375,28 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     );
   }
 
-  if (source.type === 'file') {
+  if (renderSource.type === 'file') {
     // Local files play via the browser's native hardware decoder — no
     // re-encoding needed. The .video-stage CSS rule stretches the element
     // to fill its container at any resolution (object-fit: contain keeps
     // the aspect ratio), so a 1080p file fills full screen properly instead
     // of being capped to a small fixed box.
-    const isLocal = source.isLocal;
+    const isLocal = renderSource.isLocal;
     return (
       <div className="video-stage">
         <video
           ref={fileVideoRef}
-          src={source.url}
+          src={renderSource.url}
           playsInline
           controls={false}
           onLoadedMetadata={flushPending}
-          onError={() => onPlaybackError?.()}
+          onError={() => {
+            // Don't propagate errors during source transitions (e.g.
+            // the old blob URL was revoked while the <video> still
+            // referenced it — this is expected, not a real playback error)
+            if (sourceTransitionRef.current) return;
+            onPlaybackError?.();
+          }}
           style={{ pointerEvents: 'none' }}
         />
         {isLocal && (
