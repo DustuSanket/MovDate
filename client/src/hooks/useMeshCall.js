@@ -41,7 +41,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   const dataChannelsRef = useRef(new Map());
   // Track perfect negotiation state per peer
   const makingOfferRef = useRef(new Set());
-  const ignoreOfferRef = useRef(new Set());
+  const ignoreOfferRef = useRef(new Map());
   // Track retry counts per peer
   const retryCountRef = useRef(new Map());
   // Track connection timeouts per peer
@@ -255,24 +255,6 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     });
   }, []);
 
-  const createOffer = useCallback(
-    async (peerId) => {
-      const pc = getOrCreatePeerConnection(peerId, { asOfferer: true });
-      try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('webrtc:offer', { to: peerId, offer });
-      } catch (err) {
-        console.warn('Failed to create offer for', peerId, err);
-      }
-    },
-    [getOrCreatePeerConnection]
-  );
-
-  // Keep ref updated so timeouts can use the latest version without circular deps
-  useEffect(() => {
-    createOfferRef.current = createOffer;
-  }, [createOffer]);
 
   // Signaling listeners — registered once, independent of local media state,
   // so a participant without camera/mic access can still receive others.
