@@ -12,11 +12,12 @@ import DeviceSettings from './DeviceSettings.jsx';
 // - Click the layout button to cycle bottom bar -> side bar -> floating grid.
 // - Drag the handle (the grip + label strip) to reposition.
 // - Drag the corner handle to resize the tiles.
-const LAYOUTS = ['bottom-bar', 'side-bar', 'grid'];
+const LAYOUTS = ['top-bar', 'bottom-bar', 'floating-horizontal', 'floating-vertical'];
 const LAYOUT_LABELS = {
+  'top-bar': 'Top bar',
   'bottom-bar': 'Bottom bar',
-  'side-bar': 'Side bar',
-  grid: 'Floating grid',
+  'floating-horizontal': 'Floating horizontal',
+  'floating-vertical': 'Floating vertical',
 };
 
 const MIN_TILE = 72;
@@ -105,6 +106,9 @@ export default function CallOverlay({
 
   function handleDragPointerDown(event) {
     if (event.target.closest('button, select, .device-settings-panel')) return;
+    // Only floating layouts can be dragged
+    if (!layout.startsWith('floating')) return;
+
     const bounds = boundsRef?.current?.getBoundingClientRect();
     const overlay = overlayRef.current?.getBoundingClientRect();
     if (!bounds || !overlay) return;

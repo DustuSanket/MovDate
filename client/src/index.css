@@ -687,9 +687,57 @@ ul {
   padding: 1rem;
 }
 
+.empty-stage-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  position: relative;
+  color: var(--color-text-muted);
+}
+
+.empty-stage-tv {
+  color: var(--color-border-glow);
+  animation: floatTV 4s ease-in-out infinite;
+  filter: drop-shadow(0 8px 16px rgba(232, 67, 147, 0.15));
+}
+
+.empty-stage-z-group {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-lavender);
+}
+
+.empty-stage-z {
+  position: absolute;
+  opacity: 0;
+  animation: floatZ 3s ease-in infinite;
+}
+
+.empty-stage-z-1 { font-size: 1rem; left: 0px; top: 0px; animation-delay: 0s; }
+.empty-stage-z-2 { font-size: 1.2rem; left: 15px; top: -15px; animation-delay: 1s; }
+.empty-stage-z-3 { font-size: 1.5rem; left: 35px; top: -35px; animation-delay: 2s; }
+
+@keyframes floatTV {
+  0% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-8px) scale(1.02); }
+  100% { transform: translateY(0px) scale(1); }
+}
+
+@keyframes floatZ {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.8); }
+  20% { opacity: 1; }
+  80% { opacity: 0; }
+  100% { opacity: 0; transform: translate(15px, -30px) scale(1.2); }
+}
+
 .video-stage--empty p {
   font-size: 0.95rem;
   color: var(--color-text-muted);
+  letter-spacing: 0.05em;
 }
 
 /* ── Player controls ───────────────────────────────────────────────── */
@@ -1066,40 +1114,60 @@ ul {
   touch-action: none;
 }
 
+.call-overlay--top-bar {
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
 .call-overlay--bottom-bar {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
+.call-overlay--floating-horizontal {
+  top: 1rem;
   left: 50%;
-  bottom: 5.5rem;
   transform: translateX(-50%);
   max-width: calc(100% - 2rem);
 }
 
-.call-overlay--bottom-bar .call-overlay-tiles {
-  flex-direction: row;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-}
-
-.call-overlay--side-bar {
+.call-overlay--floating-vertical {
   right: 1rem;
   top: 50%;
   transform: translateY(-50%);
   max-height: calc(100% - 2rem);
 }
 
-.call-overlay--side-bar .call-overlay-tiles {
-  flex-direction: column;
-  overflow-y: auto;
-}
+/* ── Tile layouts ──────────────────────────────────────────────────── */
 
-.call-overlay--grid {
-  top: 1rem;
-  right: 1rem;
-}
-
-.call-overlay--grid .call-overlay-tiles {
+.call-overlay--top-bar .call-overlay-tiles,
+.call-overlay--bottom-bar .call-overlay-tiles {
   flex-direction: row;
-  flex-wrap: wrap;
-  max-width: min(60vw, 480px);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  justify-content: center;
+}
+
+.call-overlay--floating-horizontal .call-overlay-tiles {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.call-overlay--floating-vertical .call-overlay-tiles {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  overflow-y: auto;
 }
 
 .call-overlay-handle {

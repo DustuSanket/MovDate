@@ -355,7 +355,35 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   if (!renderSource) {
     return (
       <div className="video-stage video-stage--empty">
-        <p>No video loaded yet.</p>
+        <div className="empty-stage-content">
+          <svg
+            className="empty-stage-tv"
+            viewBox="0 0 100 100"
+            width="80"
+            height="80"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {/* TV Body */}
+            <rect x="15" y="25" width="70" height="50" rx="8" />
+            {/* TV Antenna */}
+            <path d="M35 10 L50 25 L65 10" />
+            <circle cx="33" cy="8" r="3" fill="currentColor" />
+            <circle cx="67" cy="8" r="3" fill="currentColor" />
+            {/* Sleeping Eyes (Zz) */}
+            <path d="M35 45 Q40 50 45 45" />
+            <path d="M55 45 Q60 50 65 45" />
+          </svg>
+          <div className="empty-stage-z-group">
+            <span className="empty-stage-z empty-stage-z-1">z</span>
+            <span className="empty-stage-z empty-stage-z-2">Z</span>
+            <span className="empty-stage-z empty-stage-z-3">z</span>
+          </div>
+          <p>No video loaded yet.</p>
+        </div>
       </div>
     );
   }
