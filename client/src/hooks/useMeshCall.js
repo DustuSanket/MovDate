@@ -4,6 +4,9 @@ import { socket } from '../lib/socket.js';
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
   // Free TURN server to handle strict symmetric NATs where STUN fails:
   {
     urls: 'turn:openrelay.metered.ca:80',
@@ -188,7 +191,11 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       try {
         makingOfferRef.current.add(peerId);
         await pc.setLocalDescription();
-        socket.emit('webrtc:offer', { to: peerId, offer: pc.localDescription });
+        if (pc.localDescription.type === 'offer') {
+          socket.emit('webrtc:offer', { to: peerId, offer: pc.localDescription });
+        } else if (pc.localDescription.type === 'answer') {
+          socket.emit('webrtc:answer', { to: peerId, answer: pc.localDescription });
+        }
       } catch (err) {
         console.warn('Renegotiation failed for', peerId, err);
       } finally {
@@ -309,6 +316,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     }
 
     async function handleIceCandidate({ from, candidate }) {
+      if (ignoreOfferRef.current.get(from)) return;
       const pc = getOrCreatePeerConnection(from);
       if (candidate) {
         try {
