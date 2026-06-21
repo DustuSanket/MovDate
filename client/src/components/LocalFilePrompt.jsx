@@ -17,9 +17,10 @@ export default function LocalFilePrompt({
   streamReady,
   streamError,
   streamProgress,   // 0–100
+  wantStream,       // true if user chose "Stream from host"
   dismissed,
 }) {
-  const isStreaming = streamProgress > 0 && !streamReady;
+  const isStreaming = wantStream && !streamReady;
 
   function handleFilePick(event) {
     const file = event.target.files?.[0];

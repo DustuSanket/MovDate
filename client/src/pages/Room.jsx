@@ -722,6 +722,7 @@ export default function Room() {
                 streamReady={streamReady}
                 streamError={streamError}
                 streamProgress={streamProgress}
+                wantStream={localFileMode === 'stream'}
                 dismissed={localPromptDismissed && !(localFileMode === 'stream' && !streamReady)}
               />
             )}

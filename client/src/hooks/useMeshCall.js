@@ -392,8 +392,8 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     }
 
     async function handleIceCandidate({ from, candidate }) {
-      const pc = peerConnections.current.get(from);
-      if (pc && candidate) {
+      const pc = getOrCreatePeerConnection(from);
+      if (candidate) {
         try {
           if (!pc.remoteDescription) {
             // Remote description not set yet, buffer the candidate
