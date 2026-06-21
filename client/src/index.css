@@ -1150,6 +1150,12 @@ ul {
 
 /* ── Tile layouts ──────────────────────────────────────────────────── */
 
+.call-overlay .participant-tile {
+  flex: 0 0 auto;
+  max-width: none;
+  max-height: none;
+}
+
 .call-overlay--top-bar .call-overlay-tiles,
 .call-overlay--bottom-bar .call-overlay-tiles {
   flex-direction: row;
@@ -1164,10 +1170,24 @@ ul {
   overflow-x: auto;
 }
 
+.call-overlay--top-bar .participant-tile,
+.call-overlay--bottom-bar .participant-tile,
+.call-overlay--floating-horizontal .participant-tile {
+  height: var(--tile-size);
+  width: auto;
+  aspect-ratio: 16 / 9;
+}
+
 .call-overlay--floating-vertical .call-overlay-tiles {
   flex-direction: column;
   flex-wrap: nowrap;
   overflow-y: auto;
+}
+
+.call-overlay--floating-vertical .participant-tile {
+  width: var(--tile-size);
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 
 .call-overlay-handle {
