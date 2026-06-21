@@ -2036,6 +2036,28 @@ ul {
 }
 
 /* ============================================================
+   Room Header Additions
+   ============================================================ */
+
+.leave-room-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-danger);
+  background: transparent;
+  color: var(--color-danger);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.leave-room-btn:hover {
+  background: rgba(220, 53, 69, 0.1);
+  border-color: #ff4d6d;
+  color: #ff4d6d;
+}
+
+/* ============================================================
    Protected room controls
    ============================================================ */
 

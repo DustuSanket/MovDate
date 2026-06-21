@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useRoomSocket } from '../hooks/useRoomSocket.js';
 import { useLocalMedia } from '../hooks/useLocalMedia.js';
 import { useMeshCall } from '../hooks/useMeshCall.js';
@@ -17,6 +17,7 @@ import { useLocalFileStream } from '../hooks/useLocalFileStream.js';
 export default function Room() {
   const { roomId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [name, setName] = useState(() => {
     return location.state?.name || sessionStorage.getItem(`movdate_name_${roomId}`) || '';
@@ -614,6 +615,14 @@ export default function Room() {
           <span className="participant-count">
             {participants.length} {participants.length === 1 ? 'person' : 'people'} watching
           </span>
+          <button
+            type="button"
+            className="leave-room-btn"
+            onClick={() => navigate('/')}
+            title="Leave room and return to home"
+          >
+            Leave
+          </button>
         </div>
       </header>
 

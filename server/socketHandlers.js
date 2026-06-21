@@ -304,7 +304,13 @@ export function registerSocketHandlers(io) {
     });
 
     socket.on('webrtc:ice-candidate', ({ to, candidate }) => {
-      if (to) io.to(to).emit('webrtc:ice-candidate', { from: socket.id, candidate });
+      if (!to) return;
+      socket.to(to).emit('webrtc:ice-candidate', { from: socket.id, candidate });
+    });
+
+    socket.on('webrtc:renegotiate', ({ to }) => {
+      if (!to) return;
+      socket.to(to).emit('webrtc:renegotiate', { from: socket.id });
     });
 
     socket.on('disconnect', () => {

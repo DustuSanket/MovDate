@@ -85,36 +85,47 @@ export function useLocalFileStream({ isHost, dataChannels, file }) {
       const buffer = await slice.arrayBuffer();
       dc.send(buffer);
       offset += buffer.byteLength;
-
-      // Update send progress
-      const pct = Math.round((offset / f.size) * 100);
-      setHostSendProgress((prev) => new Map(prev).set(peerId, pct));
     }
 
     // 3. End sentinel
     dc.send(JSON.stringify({ type: 'file-stream-end' }));
-
-    // Mark as complete — keep at 100 briefly so the UI shows "done",
-    // then remove after a short delay
-    setHostSendProgress((prev) => new Map(prev).set(peerId, 100));
-    setTimeout(() => {
-      setHostSendProgress((prev) => {
-        const next = new Map(prev);
-        next.delete(peerId);
-        return next;
-      });
-    }, 3000);
   }, []);
 
-  // ── HOST: stream the file to all open data channels ──
+  // ── HOST: stream the file to all open data channels and listen for progress ──
   useEffect(() => {
     if (!isHost || !file) return undefined;
 
+    const attached = [];
     dataChannels.forEach((dc, peerId) => {
+      // Listen for progress reports from this peer
+      function handleProgress(event) {
+        if (typeof event.data !== 'string') return;
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+        if (msg.type === 'file-stream-progress') {
+          setHostSendProgress((prev) => new Map(prev).set(peerId, msg.progress));
+          if (msg.progress === 100) {
+            setTimeout(() => {
+              setHostSendProgress((prev) => {
+                const next = new Map(prev);
+                next.delete(peerId);
+                return next;
+              });
+            }, 3000);
+          }
+        }
+      }
+      dc.addEventListener('message', handleProgress);
+      attached.push([dc, handleProgress]);
+
       if (dc.readyState === 'open') {
         streamFileToPeer(peerId, dc);
       }
     });
+
+    return () => {
+      attached.forEach(([dc, handler]) => dc.removeEventListener('message', handler));
+    };
   }, [isHost, dataChannels, file, streamFileToPeer]);
 
   // Reset sentToPeers when the file changes so a new file re-streams
@@ -173,6 +184,10 @@ export function useLocalFileStream({ isHost, dataChannels, file }) {
           setStreamReady(true);
           setStreamProgress(100);
           chunksRef.current = []; // free memory
+          // Tell host we're done
+          if (dc.readyState === 'open') {
+            dc.send(JSON.stringify({ type: 'file-stream-progress', progress: 100 }));
+          }
           return;
         }
         return;
@@ -182,9 +197,14 @@ export function useLocalFileStream({ isHost, dataChannels, file }) {
         chunksRef.current.push(data);
         receivedRef.current += data.byteLength;
         if (totalSizeRef.current > 0) {
-          setStreamProgress(
-            Math.round((receivedRef.current / totalSizeRef.current) * 100)
-          );
+          const pct = Math.round((receivedRef.current / totalSizeRef.current) * 100);
+          setStreamProgress(pct);
+          // Tell host where we are, but throttle it roughly (only send every 1% or so)
+          // We can just send it, WebRTC data channels are fast, but let's avoid flooding:
+          // Actually, sending a small string every 256KB chunk is perfectly fine.
+          if (dc.readyState === 'open') {
+            dc.send(JSON.stringify({ type: 'file-stream-progress', progress: pct }));
+          }
         }
       }
     }

@@ -205,9 +205,13 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     // Renegotiation: when tracks are added after the initial offer/answer
     // (e.g. camera stream arrives late), the browser fires this event.
     // Only the offerer side should respond to avoid "glare" (both sides
-    // offering at once).
+    // offering at once). If the answerer needs to renegotiate, they ask the
+    // offerer to do it.
     pc.onnegotiationneeded = async () => {
-      if (!offererForRef.current.has(peerId)) return;
+      if (!offererForRef.current.has(peerId)) {
+        socket.emit('webrtc:renegotiate', { to: peerId });
+        return;
+      }
       if (negotiatingRef.current.has(peerId)) return;
       negotiatingRef.current.add(peerId);
       try {
@@ -406,14 +410,22 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       }
     }
 
+    function handleRenegotiate({ from }) {
+      if (offererForRef.current.has(from)) {
+        if (createOfferRef.current) createOfferRef.current(from);
+      }
+    }
+
     socket.on('webrtc:offer', handleOffer);
     socket.on('webrtc:answer', handleAnswer);
     socket.on('webrtc:ice-candidate', handleIceCandidate);
+    socket.on('webrtc:renegotiate', handleRenegotiate);
 
     return () => {
       socket.off('webrtc:offer', handleOffer);
       socket.off('webrtc:answer', handleAnswer);
       socket.off('webrtc:ice-candidate', handleIceCandidate);
+      socket.off('webrtc:renegotiate', handleRenegotiate);
     };
   }, [getOrCreatePeerConnection]);
 
