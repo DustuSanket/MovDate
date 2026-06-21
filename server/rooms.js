@@ -37,12 +37,13 @@ export function getOrCreateRoom(roomId, options = {}) {
   return room;
 }
 
-export function addParticipant(room, socketId, rawName, forceHost = false) {
+export function addParticipant(room, socketId, rawName, forceHost = false, clientId = null) {
   const isFirst = room.participants.size === 0;
   const isHost = isFirst || forceHost;
   const name = (rawName || 'Guest').toString().trim().slice(0, 24) || 'Guest';
   const participant = {
     id: socketId,
+    clientId,
     name,
     muted: false,
     cameraOff: false,

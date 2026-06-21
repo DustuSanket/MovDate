@@ -29,7 +29,7 @@ export function registerSocketHandlers(io) {
     });
 
     // ─── Join room ────────────────────────────────────────────────────────────
-    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret }, callback) => {
+    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret, clientId }, callback) => {
       if (!roomId || typeof roomId !== 'string' || !roomId.trim()) {
         callback?.({ error: 'A room code is required.' });
         return;
@@ -39,6 +39,28 @@ export function registerSocketHandlers(io) {
       // Pass protected flag only when creating the room (first joiner = host)
       const room = getOrCreateRoom(cleanRoomId, { protected: Boolean(wantsProtected) });
 
+      // Clean up ghosts if reconnecting
+      if (clientId) {
+        // From waiting room
+        for (const [existingSocketId, waiter] of room.waitingRoom.entries()) {
+          if (waiter.clientId === clientId) {
+            room.waitingRoom.delete(existingSocketId);
+            if (room.hostId) {
+              io.to(room.hostId).emit('room:waiting-left', { socketId: existingSocketId });
+            }
+            break;
+          }
+        }
+        // From main room
+        for (const [existingSocketId, p] of room.participants.entries()) {
+          if (p.clientId === clientId) {
+            const { newHostId } = removeParticipant(room, existingSocketId);
+            io.to(cleanRoomId).emit('room:participant-left', { id: existingSocketId, newHostId });
+            break;
+          }
+        }
+      }
+
       let forceHost = false;
       if (hostSecret && hostSecret === room.hostSecret) {
         forceHost = true;
@@ -47,7 +69,7 @@ export function registerSocketHandlers(io) {
       // If room is protected AND there is already a host, put this person in the waiting room
       if (room.protected && room.hostId && room.hostId !== socket.id && !forceHost) {
         const cleanName = (name || 'Guest').toString().trim().slice(0, 24) || 'Guest';
-        room.waitingRoom.set(socket.id, { socketId: socket.id, name: cleanName });
+        room.waitingRoom.set(socket.id, { socketId: socket.id, name: cleanName, clientId });
         currentRoomId = cleanRoomId;
         socket.join(cleanRoomId);
 
@@ -62,7 +84,7 @@ export function registerSocketHandlers(io) {
       }
 
       // Normal join (first person, or unprotected room, or reclaiming host)
-      const participant = addParticipant(room, socket.id, name, forceHost);
+      const participant = addParticipant(room, socket.id, name, forceHost, clientId);
       currentRoomId = cleanRoomId;
       socket.join(cleanRoomId);
 

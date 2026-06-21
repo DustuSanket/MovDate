@@ -13,6 +13,14 @@ export function useRoomSocket(roomId, name, options = {}) {
   const [isProtected, setIsProtected] = useState(false);
   const [hostSecret, setHostSecret] = useState(null);
 
+  // Persistent clientId to help server deduplicate fast-reconnect ghosts
+  const clientIdRef = useRef(null);
+  if (!clientIdRef.current) {
+    clientIdRef.current = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2, 15);
+  }
+
   // Waiting room: list of { socketId, name } that the host needs to admit/reject
   const [waitingKnocks, setWaitingKnocks] = useState([]);
 
@@ -44,7 +52,13 @@ export function useRoomSocket(roomId, name, options = {}) {
     socket.connect();
 
     function handleConnect() {
-      socket.emit('room:join', { roomId, name, protected: options.protected, hostSecret: options.hostSecret }, (response) => {
+      socket.emit('room:join', { 
+        roomId, 
+        name, 
+        protected: options.protected, 
+        hostSecret: options.hostSecret,
+        clientId: clientIdRef.current
+      }, (response) => {
         if (response?.error) {
           setConnectionError(response.error);
           setStatus('error');
