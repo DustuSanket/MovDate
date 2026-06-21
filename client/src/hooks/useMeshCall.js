@@ -285,9 +285,6 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       }
 
       try {
-        if (offerCollision) {
-          await pc.setLocalDescription({ type: 'rollback' });
-        }
         await pc.setRemoteDescription(offer);
         
         await flushPendingCandidates(from, pc);
