@@ -139,8 +139,20 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     }
   }
 
+  function getExpectedTime() {
+    const { kind, time, updatedAt } = authoritativeRef.current;
+    if (kind === 'play' && updatedAt) {
+      return time + (Date.now() - updatedAt) / 1000;
+    }
+    return time ?? 0;
+  }
+
   function dispatch(kind, time) {
-    authoritativeRef.current = { kind, time };
+    authoritativeRef.current = { 
+      kind: kind === 'seek' ? authoritativeRef.current.kind || 'pause' : kind, 
+      time: time ?? 0, 
+      updatedAt: Date.now() 
+    };
     const action = { kind, time };
     if (readyRef.current) {
       applyAction(action);
@@ -236,7 +248,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
               const currentTime = player.getCurrentTime() ?? 0;
               const kind = event.data === PLAYING ? 'play' : 'pause';
               // Update authoritative so future reverts are correct
-              authoritativeRef.current = { kind, time: currentTime };
+              authoritativeRef.current = { kind, time: currentTime, updatedAt: Date.now() };
               hasPlayedRef.current = true;
               onHostPlayPauseRef.current?.({ kind, time: currentTime });
               // Clicking the iframe stole keyboard focus — give it back so
@@ -244,9 +256,10 @@ const VideoPlayer = forwardRef(function VideoPlayer(
               returnFocusToPage();
             } else {
               // Non-host triggered a change — snap back to authoritative state
-              const { kind, time } = authoritativeRef.current;
+              const { kind } = authoritativeRef.current;
+              const expectedTime = getExpectedTime();
               markProgrammatic();
-              setTimeout(() => applyToYT(kind, time), 50);
+              setTimeout(() => applyAction({ kind, time: expectedTime }), 50);
             }
           },
         },
@@ -282,25 +295,38 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     }
     function handlePause() {
       if (programmaticRef.current) return;
-      if (!isHostRef.current && authoritativeRef.current.kind === 'play') {
-        markProgrammatic();
-        el.play().catch(() => {});
-      }
-    }
-    function handleSeeking() {
-      if (programmaticRef.current) return;
       if (!isHostRef.current) {
-        el.currentTime = authoritativeRef.current.time ?? 0;
+        const { kind } = authoritativeRef.current;
+        const expectedTime = getExpectedTime();
+        markProgrammatic();
+        if (kind === 'play') {
+          el.currentTime = expectedTime;
+          el.play().catch(() => {});
+        } else {
+          el.currentTime = expectedTime;
+        }
       }
     }
 
-    el.addEventListener('play',    handlePlay);
-    el.addEventListener('pause',   handlePause);
-    el.addEventListener('seeking', handleSeeking);
+    function handleSeeked() {
+      if (programmaticRef.current) return;
+      if (!isHostRef.current) {
+        const expectedTime = getExpectedTime();
+        if (Math.abs(el.currentTime - expectedTime) > 1.5) {
+          markProgrammatic();
+          el.currentTime = expectedTime;
+        }
+      }
+    }
+
+    el.addEventListener('play', handlePlay);
+    el.addEventListener('pause', handlePause);
+    el.addEventListener('seeked', handleSeeked);
+
     return () => {
       el.removeEventListener('play',    handlePlay);
       el.removeEventListener('pause',   handlePause);
-      el.removeEventListener('seeking', handleSeeking);
+      el.removeEventListener('seeked', handleSeeked);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source?.type, source?.url]);
