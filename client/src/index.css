@@ -1979,6 +1979,14 @@ ul {
   margin: 0.25rem 0;
 }
 
+.local-prompt-connecting {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
 .local-prompt-progress-bar {
   width: 100%;
   height: 5px;

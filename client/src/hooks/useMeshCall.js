@@ -34,6 +34,8 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   const retryCountRef = useRef(new Map());
   // Track connection timeouts per peer
   const timeoutsRef = useRef(new Map());
+  // Buffer incoming ICE candidates that arrive before the remote description is set
+  const pendingCandidatesRef = useRef(new Map());
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -55,6 +57,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     setDataChannels(new Map(dataChannelsRef.current));
     const timer = timeoutsRef.current.get(peerId);
     if (timer) { clearTimeout(timer); timeoutsRef.current.delete(peerId); }
+    pendingCandidatesRef.current.delete(peerId);
     setRemoteStreams((prev) => {
       if (!(peerId in prev)) return prev;
       const next = { ...prev };
@@ -309,6 +312,20 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   // Signaling listeners — registered once, independent of local media state,
   // so a participant without camera/mic access can still receive others.
   useEffect(() => {
+    async function flushPendingCandidates(peerId, pc) {
+      const queue = pendingCandidatesRef.current.get(peerId) || [];
+      if (queue.length > 0 && pc.remoteDescription) {
+        for (const candidate of queue) {
+          try {
+            await pc.addIceCandidate(candidate);
+          } catch (err) {
+            console.warn('Failed to add buffered ICE candidate from', peerId, err);
+          }
+        }
+        pendingCandidatesRef.current.delete(peerId);
+      }
+    }
+
     async function handleOffer({ from, offer }) {
       const pc = getOrCreatePeerConnection(from);
       try {
@@ -327,6 +344,9 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
         } else {
           await pc.setRemoteDescription(offer);
         }
+        
+        await flushPendingCandidates(from, pc);
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit('webrtc:answer', { to: from, answer });
@@ -340,6 +360,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       if (pc) {
         try {
           await pc.setRemoteDescription(answer);
+          await flushPendingCandidates(from, pc);
         } catch (err) {
           console.warn('Failed to handle answer from', from, err);
         }
@@ -350,7 +371,15 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       const pc = peerConnections.current.get(from);
       if (pc && candidate) {
         try {
-          await pc.addIceCandidate(candidate);
+          if (!pc.remoteDescription) {
+            // Remote description not set yet, buffer the candidate
+            const queue = pendingCandidatesRef.current.get(from) || [];
+            queue.push(candidate);
+            pendingCandidatesRef.current.set(from, queue);
+          } else {
+            // Safe to add immediately
+            await pc.addIceCandidate(candidate);
+          }
         } catch (err) {
           console.warn('Failed to add ICE candidate from', from, err);
         }
