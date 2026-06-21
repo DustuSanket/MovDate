@@ -40,13 +40,13 @@ export default function Room() {
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [mediaPerms, setMediaPerms] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('movdate_media_perms');
+      const saved = localStorage.getItem('movdate_media_perms');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return { mic: false, camera: false, answered: false };
   });
   const [showPermModal, setShowPermModal] = useState(() => {
-    return !sessionStorage.getItem('movdate_media_perms');
+    return !localStorage.getItem('movdate_media_perms');
   });
   const [localFileUrl, setLocalFileUrl] = useState(null);
   const localFileRef = useRef(null);
@@ -590,7 +590,7 @@ export default function Room() {
               answered: true
             };
             setMediaPerms(perms);
-            sessionStorage.setItem('movdate_media_perms', JSON.stringify(perms));
+            localStorage.setItem('movdate_media_perms', JSON.stringify(perms));
           }}
         />
       )}
