@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const CHUNK_SIZE = 256 * 1024; // 256 KB — good balance of overhead vs latency
 
-export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
+export function useLocalFileStream({ isHost, dataChannels, file }) {
   const [streamUrl,      setStreamUrl]      = useState(null);
   const [streamReady,    setStreamReady]    = useState(false);
   const [streamError,    setStreamError]    = useState(null);
@@ -106,72 +106,36 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
     }, 3000);
   }, []);
 
-  // ── HOST: listen for an explicit "send me the file" request from each
-  // peer, and only THEN start streaming to that peer. This is the fix for
-  // the old behavior, which pushed the whole file down every open channel
-  // the instant the host picked a file — long before participants had even
-  // seen the prompt, let alone chosen "Stream from host". Anyone who clicked
-  // "Stream from host" late (or who chose "Load my own copy" and never
-  // listened at all) would have the meta frame and early chunks sail past
-  // with no listener attached to catch them, so their progress bar never
-  // moved off 0%.
+  // ── HOST: stream the file to all open data channels ──
   useEffect(() => {
-    if (!isHost) return undefined;
+    if (!isHost || !file) return undefined;
 
-    const attached = [];
     dataChannels.forEach((dc, peerId) => {
-      function handleRequest(event) {
-        if (typeof event.data !== 'string') return;
-        let msg;
-        try { msg = JSON.parse(event.data); } catch { return; }
-        if (msg.type === 'request-file-stream') {
-          // Remove from sentToPeers so a re-request (after participant switches
-          // source and comes back to "stream from host") is honoured.
-          sentToPeers.current.delete(peerId);
-          streamFileToPeer(peerId, dc);
-        }
+      if (dc.readyState === 'open') {
+        streamFileToPeer(peerId, dc);
       }
-      dc.addEventListener('message', handleRequest);
-      attached.push([dc, handleRequest]);
     });
+  }, [isHost, dataChannels, file, streamFileToPeer]);
 
-    return () => {
-      attached.forEach(([dc, handler]) => dc.removeEventListener('message', handler));
-    };
-  }, [isHost, dataChannels, streamFileToPeer]);
-
-  // Reset sentToPeers when the file changes so a new file re-streams to
-  // anyone who re-requests it
+  // Reset sentToPeers when the file changes so a new file re-streams
   useEffect(() => {
     sentToPeers.current.clear();
   }, [file]);
 
-  // ── PARTICIPANT: attach the listener AND ask the host to start, in the
-  // same step — so there's no window where the host could be sending and
-  // nobody is listening yet. ─────────────────────────────────────────────
+  // ── PARTICIPANT: unconditionally listen to the host's stream ──
   useEffect(() => {
-    // When participant switches away from stream mode, clear all stream state
-    // so the modal shows fresh options (no stale "Stream ready!" message).
-    if (isHost || !wantStream) {
-      setStreamUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-      setStreamReady(false);
-      setStreamError(null);
-      setStreamProgress(0);
-      chunksRef.current    = [];
-      receivedRef.current  = 0;
-      totalSizeRef.current = 0;
-      return;
-    }
+    if (isHost) return undefined;
 
     // Find an open data channel
     let dc = null;
     for (const [, ch] of dataChannels) {
       if (ch.readyState === 'open') { dc = ch; break; }
     }
-    if (!dc) return;
+    if (!dc) return undefined;
 
-    // Always detach the old listener before re-attaching (even if DC is the same),
-    // so switching source and coming back to "stream from host" always starts fresh.
+    if (listeningDcRef.current === dc) return undefined; // Already listening to this channel
+
+    // Always detach the old listener before re-attaching
     if (listeningDcRef.current && listeningDcRef.current._fileStreamCleanup) {
       listeningDcRef.current._fileStreamCleanup();
     }
@@ -227,11 +191,6 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
 
     dc.addEventListener('message', handleMessage);
 
-    // Now that we're definitely listening, ask the host to start sending.
-    if (dc.readyState === 'open') {
-      dc.send(JSON.stringify({ type: 'request-file-stream' }));
-    }
-
     // Store ref for cleanup
     dc._fileStreamCleanup = () => {
       dc.removeEventListener('message', handleMessage);
@@ -241,8 +200,7 @@ export function useLocalFileStream({ isHost, dataChannels, file, wantStream }) {
       dc.removeEventListener('message', handleMessage);
       if (listeningDcRef.current === dc) listeningDcRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, wantStream, dataChannels]);
+  }, [isHost, dataChannels]);
 
   // Revoke blob URL on unmount
   useEffect(() => {

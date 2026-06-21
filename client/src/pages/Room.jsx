@@ -37,8 +37,16 @@ export default function Room() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsHidden, setControlsHidden] = useState(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
-  const [mediaPerms, setMediaPerms] = useState({ mic: false, camera: false, answered: false });
-  const [showPermModal, setShowPermModal] = useState(true);
+  const [mediaPerms, setMediaPerms] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('movdate_media_perms');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { mic: false, camera: false, answered: false };
+  });
+  const [showPermModal, setShowPermModal] = useState(() => {
+    return !sessionStorage.getItem('movdate_media_perms');
+  });
   const [localFileUrl, setLocalFileUrl] = useState(null);
   const localFileRef = useRef(null);
 
@@ -120,7 +128,6 @@ export default function Room() {
     isHost,
     dataChannels,
     file: hostFile,
-    wantStream: !isHost && localFileMode === 'stream',
   });
 
   // ── 60-second countdown for cold-start connecting screen ──
@@ -576,11 +583,13 @@ export default function Room() {
         <PermissionModal
           onDone={({ mic, camera }) => {
             setShowPermModal(false);
-            setMediaPerms({
+            const perms = {
               mic: mic === 'granted',
               camera: camera === 'granted',
               answered: true
-            });
+            };
+            setMediaPerms(perms);
+            sessionStorage.setItem('movdate_media_perms', JSON.stringify(perms));
           }}
         />
       )}
@@ -704,7 +713,6 @@ export default function Room() {
                 streamReady={streamReady}
                 streamError={streamError}
                 streamProgress={streamProgress}
-                wantStream={localFileMode === 'stream'}
                 dismissed={localPromptDismissed && !(localFileMode === 'stream' && !streamReady)}
               />
             )}

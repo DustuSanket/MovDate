@@ -17,10 +17,9 @@ export default function LocalFilePrompt({
   streamReady,
   streamError,
   streamProgress,   // 0–100
-  wantStream,       // true if user chose "Stream from host"
   dismissed,
 }) {
-  const isStreaming = wantStream && !streamReady;
+  const isStreaming = streamProgress > 0 && !streamReady;
 
   function handleFilePick(event) {
     const file = event.target.files?.[0];
@@ -42,24 +41,15 @@ export default function LocalFilePrompt({
         {/* Show progress bar while streaming */}
         {isStreaming && (
           <div className="local-prompt-progress-wrap">
-            {streamProgress > 0 ? (
-              <>
-                <div className="local-prompt-progress-bar">
-                  <div
-                    className="local-prompt-progress-fill"
-                    style={{ width: `${streamProgress}%` }}
-                  />
-                </div>
-                <span className="local-prompt-progress-label">
-                  Receiving from host… {streamProgress}%
-                </span>
-              </>
-            ) : (
-              <div className="local-prompt-connecting">
-                <div className="waiting-spinner" aria-hidden="true" style={{ width: '24px', height: '24px', borderWidth: '2px', borderTopColor: 'var(--color-rose)' }} />
-                <span className="local-prompt-progress-label">Connecting to host...</span>
-              </div>
-            )}
+            <div className="local-prompt-progress-bar">
+              <div
+                className="local-prompt-progress-fill"
+                style={{ width: `${streamProgress}%` }}
+              />
+            </div>
+            <span className="local-prompt-progress-label">
+              Receiving from host… {streamProgress}%
+            </span>
           </div>
         )}
 

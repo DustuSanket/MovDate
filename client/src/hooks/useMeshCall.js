@@ -4,9 +4,22 @@ import { socket } from '../lib/socket.js';
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  // For larger or stricter networks (corporate Wi-Fi, some mobile carriers),
-  // plain STUN sometimes isn't enough — add a TURN server here for production:
-  // { urls: 'turn:your-turn-server:3478', username: '...', credential: '...' },
+  // Free TURN server to handle strict symmetric NATs where STUN fails:
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  }
 ];
 
 // How long to wait for a connection to succeed before retrying
@@ -36,6 +49,8 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   const timeoutsRef = useRef(new Map());
   // Buffer incoming ICE candidates that arrive before the remote description is set
   const pendingCandidatesRef = useRef(new Map());
+  // Ref to the latest createOffer function to avoid stale closures in timeouts
+  const createOfferRef = useRef(null);
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -149,7 +164,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
             // Only retry if the peer is still in the participant list
             if (!you?.id) return;
             if (wasOfferer || you.id < peerId) {
-              createOffer(peerId);
+              if (createOfferRef.current) createOfferRef.current(peerId);
             } else {
               getOrCreatePeerConnection(peerId);
             }
@@ -175,7 +190,7 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
                 destroyPeer(peerId);
                 if (!you?.id) return;
                 if (wasOfferer || you.id < peerId) {
-                  createOffer(peerId);
+                  if (createOfferRef.current) createOfferRef.current(peerId);
                 } else {
                   getOrCreatePeerConnection(peerId);
                 }
@@ -308,6 +323,11 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     },
     [getOrCreatePeerConnection]
   );
+
+  // Keep ref updated so timeouts can use the latest version without circular deps
+  useEffect(() => {
+    createOfferRef.current = createOffer;
+  }, [createOffer]);
 
   // Signaling listeners — registered once, independent of local media state,
   // so a participant without camera/mic access can still receive others.
