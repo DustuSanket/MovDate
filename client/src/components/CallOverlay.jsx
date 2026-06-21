@@ -153,7 +153,19 @@ export default function CallOverlay({
 
   function handleResizePointerMove(event) {
     if (!resizeRef.current || resizeRef.current.pointerId !== event.pointerId) return;
-    const delta = event.clientX - resizeRef.current.startX + (event.clientY - resizeRef.current.startY);
+    
+    let delta = 0;
+    const dy = event.clientY - resizeRef.current.startY;
+    const dx = event.clientX - resizeRef.current.startX;
+
+    if (layout === 'top-bar') {
+      delta = dy;
+    } else if (layout === 'bottom-bar') {
+      delta = -dy; // Invert Y because dragging UP increases height
+    } else {
+      delta = dx + dy; // Diagonal drag for floating
+    }
+
     const next = Math.round(resizeRef.current.startSize + delta / 2);
     setTileSize(Math.min(MAX_TILE, Math.max(MIN_TILE, next)));
   }

@@ -1269,12 +1269,6 @@ ul {
   gap: 0.5rem;
 }
 
-.call-overlay-tiles .participant-tile {
-  width: var(--tile-size);
-  height: var(--tile-size);
-  flex-shrink: 0;
-}
-
 .call-overlay-resize {
   position: absolute;
   right: 2px;
@@ -1288,6 +1282,19 @@ ul {
   background-repeat: no-repeat;
   padding: 4px;
   background-origin: content-box;
+}
+
+.call-overlay--top-bar .call-overlay-resize {
+  cursor: ns-resize;
+  bottom: 2px;
+  top: auto;
+}
+
+.call-overlay--bottom-bar .call-overlay-resize {
+  cursor: ns-resize;
+  top: 2px;
+  bottom: auto;
+  background-position: top right;
 }
 
 /* ── Sidebar ───────────────────────────────────────────────────────── */
