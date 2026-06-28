@@ -38,13 +38,14 @@ const HEALTH_CHECK_INTERVAL_MS = 4_000;
 // the small-group "watch party with friends" use case (roughly 2-6 people),
 // not for large broadcasts. For bigger rooms, swap this for an SFU (e.g. a
 // self-hosted mediasoup/LiveKit server, or a hosted provider).
-export function useMeshCall({ you, participants, localStream, reconnectToken }) {
+export function useMeshCall({ you, participants, localStream, screenStream, reconnectToken }) {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [dataChannels, setDataChannels] = useState(new Map());
   const peerConnections = useRef(new Map());
   const localStreamRef = useRef(null);
   const dataChannelsRef = useRef(new Map());
   // Track perfect negotiation state per peer
+  const screenStreamRef = useRef(null);
   const makingOfferRef = useRef(new Set());
   const ignoreOfferRef = useRef(new Map());
   // Track retry counts per peer
@@ -98,14 +99,39 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   // before the local stream became available (e.g. waiting on permissions).
   useEffect(() => {
     localStreamRef.current = localStream;
-    if (!localStream) return;
     peerConnections.current.forEach((pc) => {
+      if (!localStream) return;
       const existingTracks = new Set(pc.getSenders().map((sender) => sender.track));
       localStream.getTracks().forEach((track) => {
         if (!existingTracks.has(track)) pc.addTrack(track, localStream);
       });
     });
   }, [localStream]);
+
+  // Handle Screen Stream exactly like localStream
+  useEffect(() => {
+    screenStreamRef.current = screenStream;
+    peerConnections.current.forEach((pc) => {
+      const senders = pc.getSenders();
+      
+      // If screenStream is active, add its tracks
+      if (screenStream) {
+        const existingTracks = new Set(senders.map((s) => s.track));
+        screenStream.getTracks().forEach((track) => {
+          if (!existingTracks.has(track)) pc.addTrack(track, screenStream);
+        });
+      } else {
+        // If screenStream is stopped, remove the senders that belong to it
+        // Since we don't have the stream reference anymore if it's null, we remove 
+        // any sender whose track is NOT in the localStream
+        senders.forEach((sender) => {
+          if (sender.track && localStreamRef.current && !localStreamRef.current.getTracks().includes(sender.track)) {
+            pc.removeTrack(sender);
+          }
+        });
+      }
+    });
+  }, [screenStream]);
 
   const getOrCreatePeerConnection = useCallback((peerId) => {
     const existing = peerConnections.current.get(peerId);
@@ -126,6 +152,12 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
       });
     }
 
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, screenStreamRef.current);
+      });
+    }
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit('webrtc:ice-candidate', { to: peerId, candidate: event.candidate });
@@ -133,7 +165,23 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
     };
 
     pc.ontrack = (event) => {
-      setRemoteStreams((prev) => ({ ...prev, [peerId]: event.streams[0] }));
+      const stream = event.streams[0];
+      if (!stream) return;
+
+      setRemoteStreams((prev) => {
+        const peerStreams = prev[peerId] || [];
+        if (peerStreams.includes(stream)) return prev;
+        return { ...prev, [peerId]: [...peerStreams, stream] };
+      });
+
+      stream.onremovetrack = () => {
+        if (stream.getTracks().length === 0) {
+          setRemoteStreams((prev) => {
+            const peerStreams = prev[peerId] || [];
+            return { ...prev, [peerId]: peerStreams.filter(s => s !== stream) };
+          });
+        }
+      };
     };
 
     // ── ICE connection state monitoring ──────────────────────────────
@@ -244,7 +292,11 @@ export function useMeshCall({ you, participants, localStream, reconnectToken }) 
   const replaceLocalTrack = useCallback((track) => {
     if (!track) return;
     peerConnections.current.forEach((pc) => {
-      const sender = pc.getSenders().find((s) => s.track && s.track.kind === track.kind);
+      // Find the sender for the localStream (not the screenStream)
+      const sender = pc.getSenders().find((s) => {
+        return s.track && s.track.kind === track.kind && 
+               (!screenStreamRef.current || !screenStreamRef.current.getTracks().includes(s.track));
+      });
       if (sender) {
         sender.replaceTrack(track).catch((err) => console.warn('Failed to replace track for', track.kind, err));
       } else {

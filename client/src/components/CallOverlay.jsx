@@ -250,7 +250,7 @@ export default function CallOverlay({
                 isHost={participant.id === hostId}
                 muted={participant.muted}
                 cameraOff={participant.cameraOff}
-                stream={isYou ? localStream : remoteStreams[participant.id]}
+                stream={isYou ? localStream : remoteStreams[participant.id]?.[0]}
                 speakerId={selectedSpeakerId}
               />
             );

@@ -13,7 +13,7 @@ export default function CallGrid({ participants, you, hostId, localStream, remot
             isHost={participant.id === hostId}
             muted={participant.muted}
             cameraOff={participant.cameraOff}
-            stream={isYou ? localStream : remoteStreams[participant.id]}
+            stream={isYou ? localStream : (remoteStreams[participant.id] && remoteStreams[participant.id][0])}
             speakerId={speakerId}
           />
         );

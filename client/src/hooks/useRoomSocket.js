@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { socket } from '../lib/socket.js';
+import { playKnockSound, playJoinSound } from '../lib/audio.js';
 
 export function useRoomSocket(roomId, name, options = {}) {
   const [participants, setParticipants] = useState([]);
@@ -17,6 +18,9 @@ export function useRoomSocket(roomId, name, options = {}) {
   // useMeshCall watches this to tear down stale WebRTC connections.
   const [reconnectToken, setReconnectToken] = useState(0);
   const hasConnectedRef = useRef(false);
+  
+  // Track participants we've previously admitted manually so they can bypass the waiting room if they reconnect
+  const admittedNamesRef = useRef(new Set());
 
   // Persistent clientId to help server deduplicate fast-reconnect ghosts
   const clientIdRef = useRef(null);
@@ -35,8 +39,13 @@ export function useRoomSocket(roomId, name, options = {}) {
   const videoEventBusRef = useRef(typeof EventTarget !== 'undefined' ? new EventTarget() : null);
   const serverOffsetRef = useRef(0);
 
+  const optionsRef = useRef(options);
   useEffect(() => {
-    if (!roomId || !name) return;
+    optionsRef.current = options;
+  });
+
+  useEffect(() => {
+    if (!roomId || !name || options.enabled === false) return;
 
     // Ping the server to calculate round-trip time and server clock offset
     function measurePing() {
@@ -69,7 +78,8 @@ export function useRoomSocket(roomId, name, options = {}) {
         name, 
         protected: options.protected, 
         hostSecret: options.hostSecret,
-        clientId: clientIdRef.current
+        clientId: clientIdRef.current,
+        isCreating: options.isCreating
       }, (response) => {
         if (response?.error) {
           setConnectionError(response.error);
@@ -122,8 +132,15 @@ export function useRoomSocket(roomId, name, options = {}) {
 
     // Waiting room knock arrives at the host
     function handleWaitingKnock({ socketId: sid, name: knockName }) {
+      // Auto-admit if we previously admitted this exact name
+      if (admittedNamesRef.current.has(knockName)) {
+        socket.emit('room:admit', { roomId, socketId: sid });
+        return;
+      }
+
       setWaitingKnocks((prev) => {
         if (prev.some((k) => k.socketId === sid)) return prev;
+        playKnockSound();
         return [...prev, { socketId: sid, name: knockName }];
       });
     }
@@ -134,6 +151,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     }
 
     function handleParticipantJoined(participant) {
+      playJoinSound();
       setParticipants((prev) => [...prev.filter((p) => p.id !== participant.id), participant]);
     }
 
@@ -216,6 +234,11 @@ export function useRoomSocket(roomId, name, options = {}) {
       setTimeout(() => setPauseRequestDenied(false), 4000);
     }
 
+    function handleForceMedia({ type }) {
+      if (type === 'mute' && optionsRef.current.onForceMute) optionsRef.current.onForceMute();
+      if (type === 'video' && optionsRef.current.onForceCameraOff) optionsRef.current.onForceCameraOff();
+    }
+
     socket.on('connect', handleConnect);
     socket.on('room:admitted', handleAdmitted);
     socket.on('room:rejected', handleRejected);
@@ -235,6 +258,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     socket.on('video:pause-request', handlePauseRequest);
     socket.on('video:pause-request-denied', handlePauseRequestDenied);
     socket.on('video:pause-request-approved', () => {});
+    socket.on('room:force-media', handleForceMedia);
 
     if (socket.connected) handleConnect();
 
@@ -260,9 +284,10 @@ export function useRoomSocket(roomId, name, options = {}) {
       socket.off('video:pause-request', handlePauseRequest);
       socket.off('video:pause-request-denied', handlePauseRequestDenied);
       socket.off('video:pause-request-approved');
+      socket.off('room:force-media', handleForceMedia);
       socket.disconnect();
     };
-  }, [roomId, name, options.protected, options.hostSecret]);
+  }, [roomId, name, options.enabled]);
 
   const loadVideo = useCallback(
     (parsed) => socket.emit('video:load', { roomId, url: parsed.url, videoType: parsed.type, videoId: parsed.id }),
@@ -284,11 +309,23 @@ export function useRoomSocket(roomId, name, options = {}) {
     []
   );
   const switchHost = useCallback((toId) => socket.emit('room:switch-host', { roomId, toId }), [roomId]);
-  const kickParticipant = useCallback((toId) => socket.emit('room:kick', { roomId, toId }), [roomId]);
+  const kickParticipant = useCallback((toId) => {
+    setParticipants((prev) => {
+      const p = prev.find(participant => participant.id === toId);
+      if (p) admittedNamesRef.current.delete(p.name);
+      return prev;
+    });
+    socket.emit('room:kick', { roomId, toId });
+  }, [roomId]);
+
   const admitParticipant = useCallback(
     (socketId) => {
+      setWaitingKnocks((prev) => {
+        const knock = prev.find((k) => k.socketId === socketId);
+        if (knock) admittedNamesRef.current.add(knock.name);
+        return prev.filter((k) => k.socketId !== socketId);
+      });
       socket.emit('room:admit', { roomId, socketId });
-      setWaitingKnocks((prev) => prev.filter((k) => k.socketId !== socketId));
     },
     [roomId]
   );
@@ -303,6 +340,9 @@ export function useRoomSocket(roomId, name, options = {}) {
     (val) => socket.emit('room:set-protected', { roomId, protected: val }),
     [roomId]
   );
+  
+  const forceParticipantMute = useCallback((toId) => socket.emit('room:force-media', { roomId, toId, type: 'mute' }), [roomId]);
+  const forceParticipantCamera = useCallback((toId) => socket.emit('room:force-media', { roomId, toId, type: 'video' }), [roomId]);
 
   return {
     participants,
@@ -335,6 +375,8 @@ export function useRoomSocket(roomId, name, options = {}) {
     admitParticipant,
     rejectParticipant,
     setProtected,
+    forceParticipantMute,
+    forceParticipantCamera,
     hostSecret,
   };
 }

@@ -5,8 +5,9 @@ const SPEAKER_SUPPORTED =
   typeof window.HTMLMediaElement !== 'undefined' &&
   'setSinkId' in window.HTMLMediaElement.prototype;
 
-export function useLocalMedia({ permissions = { mic: false, camera: false, answered: false } } = {}) {
+export function useLocalMedia({ permissions = { mic: false, camera: false, answered: false }, screenResolution = 'auto', screenFps = 'auto' } = {}) {
   const [stream, setStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null);
   const [error, setError] = useState(null);
   const [deviceError, setDeviceError] = useState(null);
   const [muted, setMuted] = useState(true);
@@ -127,6 +128,44 @@ export function useLocalMedia({ permissions = { mic: false, camera: false, answe
     setCameraOff(nextOff);
   }
 
+  async function toggleScreenShare() {
+    if (screenStream) {
+      screenStream.getTracks().forEach((t) => t.stop());
+      setScreenStream(null);
+      return;
+    }
+
+    try {
+      let videoConstraints = true;
+      if (screenResolution !== 'auto' || screenFps !== 'auto') {
+        videoConstraints = {};
+        
+        if (screenResolution === '1080') { videoConstraints.width = 1920; videoConstraints.height = 1080; }
+        else if (screenResolution === '720') { videoConstraints.width = 1280; videoConstraints.height = 720; }
+        else if (screenResolution === '480') { videoConstraints.width = 854; videoConstraints.height = 480; }
+        else if (screenResolution === '360') { videoConstraints.width = 640; videoConstraints.height = 360; }
+        
+        if (screenFps !== 'auto') {
+          videoConstraints.frameRate = parseInt(screenFps, 10);
+        }
+      }
+
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: videoConstraints,
+        audio: true
+      });
+      
+      // When user clicks browser's built-in "Stop sharing" button
+      displayStream.getVideoTracks()[0].onended = () => {
+        setScreenStream(null);
+      };
+      
+      setScreenStream(displayStream);
+    } catch (err) {
+      console.warn("Screen share cancelled or failed:", err);
+    }
+  }
+
   // Swaps in a new mic/camera track in place, on the SAME MediaStream object
   // that's already attached to the local preview and (via the mesh hook) to
   // every peer connection. Mutating tracks on a live MediaStream — rather
@@ -199,12 +238,14 @@ export function useLocalMedia({ permissions = { mic: false, camera: false, answe
 
   return {
     stream,
+    screenStream,
     error,
     deviceError,
     muted,
     cameraOff,
     toggleMic,
     toggleCamera,
+    toggleScreenShare,
     devices: { mics, cameras, speakers },
     selectedMicId,
     selectedCameraId,

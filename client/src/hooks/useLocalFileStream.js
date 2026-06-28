@@ -1,234 +1,263 @@
-/**
- * useLocalFileStream
- *
- * HOST: reads the File in 256 KB chunks and sends them over an RTCDataChannel —
- *       but only AFTER a participant explicitly asks for it (a small
- *       'request-file-stream' message over the same channel). The host never
- *       pushes the file blindly the moment the channel opens.
- *
- * PARTICIPANT (stream mode): attaches its message listener and sends the
- *   request in the same step, so it can never miss the meta frame or the
- *   first chunks. Accumulates all chunks into a Uint8Array, then creates a
- *   Blob URL once the full file has arrived. This is the most compatible
- *   approach — no MediaSource codec string guessing, no codec mismatch
- *   errors, no seek restrictions. The trade-off is that playback starts
- *   after the entire file is received, so it's best for smaller files or
- *   fast local networks. Progress is reported so the UI can show a bar.
- *
- * PARTICIPANT (local-copy mode): handled entirely in Room.jsx — this hook
- *   is not involved.
- */
+import { useEffect, useRef, useState } from 'react';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+const CHUNK_SIZE = 64 * 1024; // 64 KB - Lowest, safest chunk size for strict WebRTC limits
 
-const CHUNK_SIZE = 256 * 1024; // 256 KB — good balance of overhead vs latency
+function getMimeType(file) {
+  if (file.type) return file.type;
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.mkv')) return 'video/mp4'; // Disguise as MP4 to trigger Chromium's byte sniffer
+  if (name.endsWith('.webm')) return 'video/webm';
+  if (name.endsWith('.avi')) return 'video/mp4'; // Disguise as MP4
+  if (name.endsWith('.mov')) return 'video/quicktime';
+  return 'video/mp4'; // fallback
+}
 
-export function useLocalFileStream({ isHost, dataChannels, file }) {
+export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
   const [streamUrl,      setStreamUrl]      = useState(null);
   const [streamReady,    setStreamReady]    = useState(false);
   const [streamError,    setStreamError]    = useState(null);
   const [streamProgress, setStreamProgress] = useState(0); // 0–100
 
   // HOST: per-peer send progress — Map<peerId, number (0–100)>
-  // Exposed so the host UI can show which participants are loading
   const [hostSendProgress, setHostSendProgress] = useState(new Map());
 
-  // HOST: track which peers we've already started sending to
-  const sentToPeers = useRef(new Set());
-  // HOST: always read the latest file inside callbacks/listeners without
-  // having to re-create them (and re-attach DC listeners) on every change.
+  // HOST: always read the latest file inside callbacks/listeners
   const fileRef = useRef(file);
   useEffect(() => { fileRef.current = file; }, [file]);
 
-  // PARTICIPANT: accumulation buffer
-  const chunksRef      = useRef([]);
-  const totalSizeRef   = useRef(0);
-  const receivedRef    = useRef(0);
-  const fileNameRef    = useRef('');
-  const listeningDcRef = useRef(null);  // the DC we attached onmessage to
+  // HOST: tracking
+  const hostAttachedPeersRef = useRef(new Set());
+  const activeRangesRef = useRef(new Set());
 
-  // ── HOST: send file to one peer (only called once we know they want it) ──
-  const streamFileToPeer = useCallback(async (peerId, dc) => {
-    const f = fileRef.current;
-    if (!f || dc.readyState !== 'open') return;
-    if (sentToPeers.current.has(peerId)) return;
-    sentToPeers.current.add(peerId);
+  // PARTICIPANT: tracking
+  const streamInfoRef = useRef({ id: null, meta: null });
+  const serviceWorkerPortRef = useRef(null);
+  const pendingRequests = useRef(new Map()); // reqId -> replyPort
+  const currentReqIdRef = useRef(null);
+  const participantAttachedRef = useRef(false);
 
-    // Track progress for this peer — start at 0
-    setHostSendProgress((prev) => new Map(prev).set(peerId, 0));
-
-    // 1. Metadata
-    dc.send(JSON.stringify({
-      type: 'file-stream-meta',
-      name: f.name,
-      size: f.size,
-    }));
-
-    // 2. Chunks
-    let offset = 0;
-    while (offset < f.size) {
-      // Flow control
-      while (dc.bufferedAmount > 8 * 1024 * 1024) {
-        await new Promise(r => setTimeout(r, 30));
-      }
-      if (dc.readyState !== 'open') {
-        // Connection lost mid-stream — clean up progress
-        setHostSendProgress((prev) => {
-          const next = new Map(prev);
-          next.delete(peerId);
-          return next;
-        });
-        return;
-      }
-
-      const slice  = f.slice(offset, offset + CHUNK_SIZE);
-      const buffer = await slice.arrayBuffer();
-      dc.send(buffer);
-      offset += buffer.byteLength;
-    }
-
-    // 3. End sentinel
-    dc.send(JSON.stringify({ type: 'file-stream-end' }));
-  }, []);
-
-  // ── HOST: stream the file to all open data channels and listen for progress ──
+  // ── HOST: stream the file chunk-by-chunk on demand ──
   useEffect(() => {
-    if (!isHost || !file) return undefined;
+    if (!isHost || !file) return;
 
-    const attached = [];
     dataChannels.forEach((dc, peerId) => {
-      // Listen for progress reports from this peer
-      function handleProgress(event) {
+      if (hostAttachedPeersRef.current.has(peerId)) return;
+      hostAttachedPeersRef.current.add(peerId);
+      
+      // Tell participant that file metadata is ready right away so they can register the SW stream
+      if (dc.readyState === 'open') {
+        dc.send(JSON.stringify({
+          type: 'file-stream-meta',
+          name: file.name,
+          size: file.size,
+          mimeType: getMimeType(file)
+        }));
+      } else {
+        // If it opens later, send it then
+        const originalOnOpen = dc.onopen;
+        dc.onopen = (e) => {
+          dc.send(JSON.stringify({
+            type: 'file-stream-meta',
+            name: file.name,
+            size: file.size,
+            mimeType: getMimeType(file)
+          }));
+          if (originalOnOpen) originalOnOpen(e);
+        };
+      }
+
+      async function handleHostMessage(event) {
         if (typeof event.data !== 'string') return;
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
-        if (msg.type === 'file-stream-progress') {
-          setHostSendProgress((prev) => new Map(prev).set(peerId, msg.progress));
-          if (msg.progress === 100) {
-            setTimeout(() => {
-              setHostSendProgress((prev) => {
-                const next = new Map(prev);
-                next.delete(peerId);
-                return next;
-              });
-            }, 3000);
+
+        if (msg.type === 'request-meta') {
+          dc.send(JSON.stringify({
+            type: 'file-stream-meta',
+            name: fileRef.current.name,
+            size: fileRef.current.size,
+            mimeType: getMimeType(fileRef.current)
+          }));
+        } else if (msg.type === 'request-range') {
+          const { start, end, reqId } = msg;
+          let offset = start;
+          activeRangesRef.current.add(reqId);
+          
+          while (offset <= end) {
+            if (!activeRangesRef.current.has(reqId)) {
+              // Range was cancelled by the participant
+              break;
+            }
+            
+            // Flow control - MUST be safely below Chrome's 16MB SCTP buffer limit
+            while (dc.bufferedAmount > 8 * 1024 * 1024) {
+              await new Promise(r => setTimeout(r, 5));
+              if (!activeRangesRef.current.has(reqId)) break;
+            }
+            if (dc.readyState !== 'open') return;
+            if (!activeRangesRef.current.has(reqId)) break;
+
+            const sliceEnd = Math.min(offset + CHUNK_SIZE, end + 1);
+            const slice = fileRef.current.slice(offset, sliceEnd);
+            const buffer = await slice.arrayBuffer();
+
+            // Send header then binary data - wrapped in retry logic for safety
+            try {
+              dc.send(JSON.stringify({ type: 'chunk-header', reqId }));
+              dc.send(buffer);
+              offset += buffer.byteLength;
+            } catch (err) {
+              // If send fails (e.g. buffer full spike), wait and retry the exact same offset
+              await new Promise(r => setTimeout(r, 50));
+            }
           }
+          
+          if (dc.readyState === 'open' && activeRangesRef.current.has(reqId)) {
+            dc.send(JSON.stringify({ type: 'chunk-end', reqId }));
+          }
+          activeRangesRef.current.delete(reqId);
+
+        } else if (msg.type === 'cancel-range') {
+          activeRangesRef.current.delete(msg.reqId);
+        } else if (msg.type === 'file-stream-progress') {
+          setHostSendProgress((prev) => new Map(prev).set(peerId, msg.progress));
         }
       }
-      dc.addEventListener('message', handleProgress);
-      attached.push([dc, handleProgress]);
 
-      if (dc.readyState === 'open') {
-        streamFileToPeer(peerId, dc);
-      }
+      dc.addEventListener('message', handleHostMessage);
+      
+      // Cleanup for this peer if DC closes
+      const originalOnClose = dc.onclose;
+      dc.onclose = (e) => {
+        hostAttachedPeersRef.current.delete(peerId);
+        dc.removeEventListener('message', handleHostMessage);
+        if (originalOnClose) originalOnClose(e);
+      };
     });
+  }, [isHost, dataChannels, file]);
 
-    return () => {
-      attached.forEach(([dc, handler]) => dc.removeEventListener('message', handler));
-    };
-  }, [isHost, dataChannels, file, streamFileToPeer]);
-
-  // Reset sentToPeers when the file changes so a new file re-streams
+  // Reset attached peers when file changes so we send meta again
   useEffect(() => {
-    sentToPeers.current.clear();
+    hostAttachedPeersRef.current.clear();
+    activeRangesRef.current.clear();
   }, [file]);
+
 
   // ── PARTICIPANT: unconditionally listen to the host's stream ──
   useEffect(() => {
-    if (isHost) return undefined;
+    if (isHost || !hostId) return;
 
-    // Find an open data channel
-    let dc = null;
-    for (const [, ch] of dataChannels) {
-      if (ch.readyState === 'open') { dc = ch; break; }
-    }
-    if (!dc) return undefined;
+    // We only attach ONCE per host. If we are already attached, do nothing.
+    if (participantAttachedRef.current) return;
 
-    if (listeningDcRef.current === dc) return undefined; // Already listening to this channel
+    const dc = dataChannels.get(hostId);
+    if (!dc) return; // Wait until host DC is created
 
-    // Always detach the old listener before re-attaching
-    if (listeningDcRef.current && listeningDcRef.current._fileStreamCleanup) {
-      listeningDcRef.current._fileStreamCleanup();
-    }
-    listeningDcRef.current = dc;
+    participantAttachedRef.current = true;
 
     // Reset state for fresh stream
-    chunksRef.current    = [];
-    receivedRef.current  = 0;
-    totalSizeRef.current = 0;
     setStreamUrl(null);
     setStreamReady(false);
     setStreamError(null);
     setStreamProgress(0);
 
-    function handleMessage(event) {
-      const data = event.data;
-
-      if (typeof data === 'string') {
+    function handleParticipantMessage(event) {
+      if (typeof event.data === 'string') {
         let msg;
-        try { msg = JSON.parse(data); } catch { return; }
+        try { msg = JSON.parse(event.data); } catch { return; }
 
         if (msg.type === 'file-stream-meta') {
-          totalSizeRef.current = msg.size;
-          fileNameRef.current  = msg.name;
-          chunksRef.current    = [];
-          receivedRef.current  = 0;
-          return;
-        }
-
-        if (msg.type === 'file-stream-end') {
-          // Assemble Blob and make a URL
-          const blob  = new Blob(chunksRef.current);
-          const url   = URL.createObjectURL(blob);
-          setStreamUrl(url);
-          setStreamReady(true);
-          setStreamProgress(100);
-          chunksRef.current = []; // free memory
-          // Tell host we're done
-          if (dc.readyState === 'open') {
-            dc.send(JSON.stringify({ type: 'file-stream-progress', progress: 100 }));
+          if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+            setStreamError("Service Worker not active. Please refresh the page.");
+            return;
           }
-          return;
-        }
-        return;
-      }
 
-      if (data instanceof ArrayBuffer) {
-        chunksRef.current.push(data);
-        receivedRef.current += data.byteLength;
-        if (totalSizeRef.current > 0) {
-          const pct = Math.round((receivedRef.current / totalSizeRef.current) * 100);
-          setStreamProgress(pct);
-          // Tell host where we are, but throttle it roughly (only send every 1% or so)
-          // We can just send it, WebRTC data channels are fast, but let's avoid flooding:
-          // Actually, sending a small string every 256KB chunk is perfectly fine.
-          if (dc.readyState === 'open') {
-            dc.send(JSON.stringify({ type: 'file-stream-progress', progress: pct }));
+          const streamId = Math.random().toString(36).substring(2);
+          streamInfoRef.current = { id: streamId, meta: msg };
+          
+          const channel = new MessageChannel();
+          serviceWorkerPortRef.current = channel.port1;
+          
+          channel.port1.onmessage = (swEvent) => {
+            if (swEvent.data.type === 'REGISTER_ACK') {
+              setStreamUrl(`/stream-media/${streamId}`);
+              setStreamReady(true);
+              // Set progress to 100% since we can play immediately and don't need the progress bar anymore
+              setStreamProgress(100); 
+            } else if (swEvent.data.type === 'request-range') {
+              const { start, end, reqId, replyPort } = swEvent.data;
+              pendingRequests.current.set(reqId, replyPort);
+              
+              if (dc.readyState === 'open') {
+                dc.send(JSON.stringify({
+                  type: 'request-range',
+                  start,
+                  end,
+                  reqId
+                }));
+              }
+            } else if (swEvent.data.type === 'cancel-range') {
+              const { reqId } = swEvent.data;
+              pendingRequests.current.delete(reqId);
+              if (dc.readyState === 'open') {
+                dc.send(JSON.stringify({
+                  type: 'cancel-range',
+                  reqId
+                }));
+              }
+            }
+          };
+
+          navigator.serviceWorker.controller.postMessage({
+            type: 'REGISTER_STREAM',
+            streamId,
+            meta: msg
+          }, [channel.port2]);
+          
+        } else if (msg.type === 'chunk-header') {
+          currentReqIdRef.current = msg.reqId;
+        } else if (msg.type === 'chunk-end') {
+          const reqId = msg.reqId;
+          if (pendingRequests.current.has(reqId)) {
+            const port = pendingRequests.current.get(reqId);
+            port.postMessage({ type: 'end' });
+            pendingRequests.current.delete(reqId);
           }
+          currentReqIdRef.current = null;
+        }
+      } else if (event.data instanceof ArrayBuffer) {
+        const reqId = currentReqIdRef.current;
+        if (reqId && pendingRequests.current.has(reqId)) {
+          const port = pendingRequests.current.get(reqId);
+          port.postMessage({ type: 'chunk', data: event.data }, [event.data]);
         }
       }
     }
 
-    dc.addEventListener('message', handleMessage);
+    if (dc.readyState === 'open') {
+      dc.addEventListener('message', handleParticipantMessage);
+      dc.send(JSON.stringify({ type: 'request-meta' }));
+    } else {
+      const originalOnOpen = dc.onopen;
+      dc.onopen = (e) => {
+        dc.addEventListener('message', handleParticipantMessage);
+        dc.send(JSON.stringify({ type: 'request-meta' }));
+        if (originalOnOpen) originalOnOpen(e);
+      };
+    }
 
-    // Store ref for cleanup
-    dc._fileStreamCleanup = () => {
-      dc.removeEventListener('message', handleMessage);
+    const originalOnClose = dc.onclose;
+    dc.onclose = (e) => {
+      participantAttachedRef.current = false;
+      dc.removeEventListener('message', handleParticipantMessage);
+      if (originalOnClose) originalOnClose(e);
     };
 
     return () => {
-      dc.removeEventListener('message', handleMessage);
-      if (listeningDcRef.current === dc) listeningDcRef.current = null;
+      participantAttachedRef.current = false;
+      dc.removeEventListener('message', handleParticipantMessage);
     };
-  }, [isHost, dataChannels]);
+  }, [isHost, hostId, dataChannels]);
 
-  // Revoke blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (streamUrl) URL.revokeObjectURL(streamUrl);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamUrl]);
-
-  return { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer, hostSendProgress };
+  return { streamUrl, streamReady, streamError, streamProgress, hostSendProgress };
 }

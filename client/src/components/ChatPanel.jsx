@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function ChatPanel({ messages, onSend, you }) {
+export default function ChatPanel({ messages, onSend, you, onClose, isSidebar }) {
   const [draft, setDraft] = useState('');
   const listRef = useRef(null);
 
@@ -16,7 +16,13 @@ export default function ChatPanel({ messages, onSend, you }) {
   }
 
   return (
-    <div className="chat-panel">
+    <div className={`chat-panel ${isSidebar ? 'sidebar-panel' : ''}`}>
+      {isSidebar && (
+        <div className="sidebar-header">
+          <h2>In-call messages</h2>
+          <button className="close-btn" onClick={onClose}>✕</button>
+        </div>
+      )}
       <ul className="chat-messages" ref={listRef}>
         {messages.length === 0 && <li className="chat-empty">No messages yet — say hi.</li>}
         {messages.map((message) => (

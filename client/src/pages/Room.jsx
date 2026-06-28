@@ -4,12 +4,13 @@ import { useRoomSocket } from '../hooks/useRoomSocket.js';
 import { useLocalMedia } from '../hooks/useLocalMedia.js';
 import { useMeshCall } from '../hooks/useMeshCall.js';
 import VideoPlayer from '../components/VideoPlayer.jsx';
-import PlayerControls from '../components/PlayerControls.jsx';
+import SourceControls from '../components/SourceControls.jsx';
+import PlaybackControls from '../components/PlaybackControls.jsx';
 import CallGrid from '../components/CallGrid.jsx';
 import CallOverlay from '../components/CallOverlay.jsx';
 import ChatPanel from '../components/ChatPanel.jsx';
 import InviteBar from '../components/InviteBar.jsx';
-import DeviceSettings from '../components/DeviceSettings.jsx';
+import SettingsModal from '../components/SettingsModal.jsx';
 import PermissionModal from '../components/PermissionModal.jsx';
 import LocalFilePrompt from '../components/LocalFilePrompt.jsx';
 import { useLocalFileStream } from '../hooks/useLocalFileStream.js';
@@ -37,6 +38,7 @@ export default function Room() {
   const [playbackError, setPlaybackError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsHidden, setControlsHidden] = useState(false);
+  const [isHoveringStage, setIsHoveringStage] = useState(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [mediaPerms, setMediaPerms] = useState(() => {
     try {
@@ -59,9 +61,11 @@ export default function Room() {
   const playerRef = useRef(null);
   const stageWrapRef = useRef(null);
   const idleTimerRef = useRef(null);
+  const seekTimeoutRef = useRef(null);
 
   // Protected room: read flag from navigation state (set on Home page)
   const wantsProtected = location.state?.protected || false;
+  const isCreating = location.state?.isCreating || false;
 
   const [hostSecret] = useState(() => sessionStorage.getItem(`movdate_host_${roomId}`) || null);
 
@@ -97,7 +101,7 @@ export default function Room() {
     rejectParticipant,
     setProtected,
     hostSecret: returnedHostSecret,
-  } = useRoomSocket(roomId, name, { protected: wantsProtected, hostSecret });
+  } = useRoomSocket(roomId, name, { protected: wantsProtected, hostSecret, isCreating });
 
   useEffect(() => {
     if (returnedHostSecret) {
@@ -127,6 +131,7 @@ export default function Room() {
 
   const { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer, hostSendProgress } = useLocalFileStream({
     isHost,
+    hostId,
     dataChannels,
     file: hostFile,
   });
@@ -420,6 +425,24 @@ export default function Room() {
 
   function handleSeek(time) {
     if (!isHost) return;
+    
+    // Artificial delay for local file stream seeking to give peers time to buffer
+    if (localFileMode === 'stream' && video.isPlaying) {
+      pause(time);
+      playerRef.current?.pauseAt(time);
+      
+      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+      seekTimeoutRef.current = setTimeout(() => {
+        // Only resume if they are still the host
+        seek(time);
+        play(time);
+        playerRef.current?.playAt(time);
+        setAutoplayBlocked(false);
+        setMutedAutoplay(false);
+      }, 800);
+      return;
+    }
+
     seek(time);
     playerRef.current?.seekTo(time);
   }
@@ -475,6 +498,13 @@ export default function Room() {
       setName(pendingName.trim());
     }
   }
+
+  // The error state is handled by navigating back to Home with the error message
+  useEffect(() => {
+    if (status === 'error' && connectionError) {
+      navigate('/', { state: { error: connectionError }, replace: true });
+    }
+  }, [status, connectionError, navigate]);
 
   // ─── Screens before the main room UI ───────────────────────────────────────
 
@@ -566,17 +596,6 @@ export default function Room() {
     );
   }
 
-  if (status === 'error') {
-    return (
-      <div className="join-gate">
-        <div className="home-card">
-          <h2>Couldn't join</h2>
-          <p>{connectionError}</p>
-        </div>
-      </div>
-    );
-  }
-
   // ─── Main room UI ──────────────────────────────────────────────────────────
   return (
     <div className="room">
@@ -639,6 +658,8 @@ export default function Room() {
               isFullscreen && controlsHidden ? ' controls-hidden' : ''
             }`}
             ref={stageWrapRef}
+            onMouseEnter={() => setIsHoveringStage(true)}
+            onMouseLeave={() => setIsHoveringStage(false)}
           >
             <VideoPlayer
               ref={playerRef}
@@ -646,6 +667,7 @@ export default function Room() {
               isHost={isHost}
               onHostPlayPause={handleHostPlayPause}
               onAutoplayBlocked={() => setAutoplayBlocked(true)}
+              onAutoplaySuccess={() => setAutoplayBlocked(false)}
               onMutedAutoplay={() => setMutedAutoplay(true)}
               onPlaybackError={() => setPlaybackError(true)}
             />
@@ -738,9 +760,17 @@ export default function Room() {
             </button>
 
             {autoplayBlocked && (
-              <p className={`media-warning${isFullscreen ? ' media-warning--overlay' : ''}`}>
-                Your browser blocked autoplay. Press play once to start in sync with everyone else.
-              </p>
+              <button
+                type="button"
+                className={`media-warning media-warning--action${isFullscreen ? ' media-warning--overlay' : ''}`}
+                onClick={() => {
+                  setAutoplayBlocked(false);
+                  // Triggering a play action locally with user gesture
+                  playerRef.current?.resumeLocal();
+                }}
+              >
+                Your browser blocked autoplay. Click here to start playing.
+              </button>
             )}
 
             {mutedAutoplay && (
@@ -784,20 +814,20 @@ export default function Room() {
               </div>
             )}
 
-            <PlayerControls
-              isHost={isHost}
-              isPlaying={Boolean(video?.isPlaying)}
-              currentTime={displayTime}
-              duration={duration}
-              onTogglePlay={handleTogglePlay}
-              onSeek={handleSeek}
-              onSkip={handleSkip}
-              onLoadVideo={handleLoadVideo}
-              onLoadLocalFile={handleLocalFilePick}
-              onRequestPause={requestPause}
-              hasVideo={Boolean(videoSource)}
-              onVolumeChange={(vol) => playerRef.current?.setVolume?.(vol)}
-            />
+            {(!isFullscreen ? isHoveringStage : true) && (
+              <PlaybackControls
+                isHost={isHost}
+                isPlaying={Boolean(video?.isPlaying)}
+                currentTime={displayTime}
+                duration={duration}
+                onTogglePlay={handleTogglePlay}
+                onSeek={handleSeek}
+                onSkip={handleSkip}
+                onRequestPause={requestPause}
+                hasVideo={Boolean(videoSource)}
+                onVolumeChange={(vol) => playerRef.current?.setVolume?.(vol)}
+              />
+            )}
 
             {isFullscreen && (
               <CallOverlay
@@ -826,6 +856,13 @@ export default function Room() {
             )}
           </div>
 
+          <SourceControls
+            isHost={isHost}
+            hasVideo={Boolean(videoSource)}
+            onLoadVideo={handleLoadVideo}
+            onLoadLocalFile={handleLocalFilePick}
+          />
+
           {mediaError && <p className="media-warning">{mediaError}</p>}
 
           <CallGrid
@@ -844,19 +881,30 @@ export default function Room() {
             <button type="button" onClick={toggleCamera} className={cameraOff ? 'is-off' : ''}>
               {cameraOff ? 'Start camera' : 'Stop camera'}
             </button>
-            <DeviceSettings
-              devices={devices}
-              selectedMicId={selectedMicId}
-              selectedCameraId={selectedCameraId}
-              selectedSpeakerId={selectedSpeakerId}
-              speakerSupported={speakerSupported}
-              onChangeMic={handleSwitchMic}
-              onChangeCamera={handleSwitchCamera}
-              onChangeSpeaker={switchSpeaker}
-              deviceError={deviceError}
-              onOpenChange={setDeviceSettingsOpen}
-              onRequestPermission={requestPermission}
-            />
+            <button
+              type="button"
+              onClick={() => setDeviceSettingsOpen(true)}
+              title="Settings"
+            >
+              ⚙️ Settings
+            </button>
+            {deviceSettingsOpen && (
+              <SettingsModal
+                devices={devices}
+                selectedMicId={selectedMicId}
+                selectedCameraId={selectedCameraId}
+                selectedSpeakerId={selectedSpeakerId}
+                speakerSupported={speakerSupported}
+                onChangeMic={handleSwitchMic}
+                onChangeCamera={handleSwitchCamera}
+                onChangeSpeaker={switchSpeaker}
+                deviceError={deviceError}
+                onRequestPermission={requestPermission}
+                isProtected={isProtected}
+                setProtected={setProtected}
+                onClose={() => setDeviceSettingsOpen(false)}
+              />
+            )}
             {/* Participant: switch local-file source — shown after a choice is made */}
             {!isHost && isLocalFileSentinel && localPromptDismissed &&
               (localFileMode === 'local-copy' || (localFileMode === 'stream' && streamReady)) && (

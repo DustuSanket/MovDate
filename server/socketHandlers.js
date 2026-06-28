@@ -29,15 +29,23 @@ export function registerSocketHandlers(io) {
     });
 
     // ─── Join room ────────────────────────────────────────────────────────────
-    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret, clientId }, callback) => {
+    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret, clientId, isCreating }, callback) => {
       if (!roomId || typeof roomId !== 'string' || !roomId.trim()) {
         callback?.({ error: 'A room code is required.' });
         return;
       }
 
       const cleanRoomId = roomId.trim().slice(0, 64);
-      // Pass protected flag only when creating the room (first joiner = host)
-      const room = getOrCreateRoom(cleanRoomId, { protected: Boolean(wantsProtected) });
+      
+      let room = getRoom(cleanRoomId);
+      if (!room) {
+        if (!isCreating) {
+          callback?.({ error: 'Room not found. Please check the code and try again.' });
+          return;
+        }
+        // Pass protected flag only when creating the room (first joiner = host)
+        room = getOrCreateRoom(cleanRoomId, { protected: Boolean(wantsProtected) });
+      }
 
       // Clean up ghosts if reconnecting
       if (clientId) {
@@ -259,6 +267,12 @@ export function registerSocketHandlers(io) {
       if (isEmpty) pruneEmptyRoom(roomId);
       const targetSocket = io.sockets.sockets.get(toId);
       if (targetSocket) targetSocket.leave(roomId);
+    });
+
+    socket.on('room:force-media', ({ roomId, toId, type }) => {
+      const room = getRoom(roomId);
+      if (!room || !isHost(room, socket.id)) return;
+      io.to(toId).emit('room:force-media', { type });
     });
 
     socket.on('chat:send', ({ roomId, text }) => {

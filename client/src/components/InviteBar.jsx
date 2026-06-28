@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 export default function InviteBar({ roomId }) {
   const [copied, setCopied] = useState(false);
-  const link = `${window.location.origin}/room/${roomId}`;
+  const link = window.location.href;
 
   async function handleCopy() {
     try {

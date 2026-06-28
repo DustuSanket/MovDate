@@ -1,8 +1,8 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { loadYouTubeAPI } from '../lib/youtubeLoader.js';
 
 const VideoPlayer = forwardRef(function VideoPlayer(
-  { source, onAutoplayBlocked, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause },
+  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause },
   ref
 ) {
   const containerRef = useRef(null);
@@ -11,6 +11,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   const readyRef = useRef(false);
   const pendingRef = useRef(null);
   const hasPlayedRef = useRef(false);
+  const [isBuffering, setIsBuffering] = useState(false);
 
   // Guards against transient null source during source transitions.
   // When the host switches from YouTube to local file (or vice versa),
@@ -133,22 +134,17 @@ const VideoPlayer = forwardRef(function VideoPlayer(
 
       if (typeof time === 'number') el.currentTime = time;
       if (kind === 'play') {
-        el.play().catch(() => {
-          // Unmuted autoplay needs a gesture in the same call stack on most
-          // browsers, and "play" almost always arrives here asynchronously
-          // (a socket round-trip after the host pressed play, or a
-          // sync-request reply on join) — never a literal click — so the
-          // unmuted attempt fails essentially every time, not just
-          // occasionally. Muted autoplay has no such restriction anywhere,
-          // so retry muted instead of leaving the video fully stalled: the
-          // viewer stays in sync visually right away and can unmute with a
-          // single tap, rather than having to hit "play" and fall out of
-          // sync until they do.
+        el.play().then(() => {
+          onAutoplaySuccess?.();
+        }).catch((err1) => {
+          if (err1.name !== 'NotAllowedError') return;
           markProgrammatic();
           el.muted = true;
           el.play()
             .then(() => onMutedAutoplay?.())
-            .catch(() => onAutoplayBlocked?.());
+            .catch((err2) => {
+              if (err2.name === 'NotAllowedError') onAutoplayBlocked?.();
+            });
         });
       }
       if (kind === 'pause') el.pause();
@@ -189,6 +185,11 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     playAt(time)       { dispatch('play',  time); },
     pauseAt(time)      { dispatch('pause', time); },
     seekTo(time)       { dispatch('seek',  time); },
+    resumeLocal()      {
+      const { kind } = authoritativeRef.current;
+      const expectedTime = getExpectedTime();
+      applyAction({ kind, time: expectedTime });
+    },
     unmute()           {
       if (source?.type === 'youtube') {
         ytPlayerRef.current?.unMute?.();
@@ -241,41 +242,49 @@ const VideoPlayer = forwardRef(function VideoPlayer(
         events: {
           onReady: flushPending,
           onStateChange(event) {
-            // Was this change caused by our own applyToYT call? If so, it's
-            // still within the grace window — ignore it and let the timer
-            // (not this handler) decide when we're done suppressing. See the
-            // comment on programmaticRef above for why we don't clear it here.
-            if (programmaticRef.current) {
-              return;
-            }
+            try {
+              // Was this change caused by our own applyToYT call? If so, it's
+              // still within the grace window — ignore it and let the timer
+              // (not this handler) decide when we're done suppressing. See the
+              // comment on programmaticRef above for why we don't clear it here.
+              if (programmaticRef.current) {
+                return;
+              }
 
-            // Only PLAYING/PAUSED are meaningful play/pause transitions.
-            // BUFFERING, CUED, UNSTARTED, ENDED are noise we don't act on —
-            // reacting to them was the other half of the duplicate-event bug.
-            const { PLAYING, PAUSED } = YT.PlayerState;
-            if (event.data !== PLAYING && event.data !== PAUSED) {
-              return;
-            }
+              // Only PLAYING/PAUSED are meaningful play/pause transitions.
+              // BUFFERING, CUED, UNSTARTED, ENDED are noise we don't act on —
+              // reacting to them was the other half of the duplicate-event bug.
+              const { PLAYING, PAUSED, BUFFERING } = YT.PlayerState;
+              
+              if (event.data === BUFFERING) setIsBuffering(true);
+              if (event.data === PLAYING || event.data === PAUSED) setIsBuffering(false);
 
-            if (isHostRef.current) {
-              // Host clicked the video directly — treat it like a real
-              // play/pause and notify Room so it can emit to the server +
-              // update state, exactly like pressing the website's button.
-              const currentTime = player.getCurrentTime() ?? 0;
-              const kind = event.data === PLAYING ? 'play' : 'pause';
-              // Update authoritative so future reverts are correct
-              authoritativeRef.current = { kind, time: currentTime, updatedAt: Date.now() };
-              hasPlayedRef.current = true;
-              onHostPlayPauseRef.current?.({ kind, time: currentTime });
-              // Clicking the iframe stole keyboard focus — give it back so
-              // arrow-key seek shortcuts keep working immediately after.
-              returnFocusToPage();
-            } else {
-              // Non-host triggered a change — snap back to authoritative state
-              const { kind } = authoritativeRef.current;
-              const expectedTime = getExpectedTime();
-              markProgrammatic();
-              setTimeout(() => applyAction({ kind, time: expectedTime }), 50);
+              if (event.data !== PLAYING && event.data !== PAUSED) {
+                return;
+              }
+
+              if (isHostRef.current) {
+                // Host clicked the video directly — treat it like a real
+                // play/pause and notify Room so it can emit to the server +
+                // update state, exactly like pressing the website's button.
+                const currentTime = player.getCurrentTime() ?? 0;
+                const kind = event.data === PLAYING ? 'play' : 'pause';
+                // Update authoritative so future reverts are correct
+                authoritativeRef.current = { kind, time: currentTime, updatedAt: Date.now() };
+                hasPlayedRef.current = true;
+                onHostPlayPauseRef.current?.({ kind, time: currentTime });
+                // Clicking the iframe stole keyboard focus — give it back so
+                // arrow-key seek shortcuts keep working immediately after.
+                returnFocusToPage();
+              } else {
+                // Non-host triggered a change — snap back to authoritative state
+                const { kind } = authoritativeRef.current;
+                const expectedTime = getExpectedTime();
+                markProgrammatic();
+                setTimeout(() => applyAction({ kind, time: expectedTime }), 50);
+              }
+            } catch (err) {
+              console.error('YT onStateChange error', err);
             }
           },
         },
@@ -287,7 +296,11 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     return () => {
       cancelled = true;
       if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
-      ytPlayerRef.current?.destroy?.();
+      try {
+        ytPlayerRef.current?.destroy?.();
+      } catch (e) {
+        console.error('YT destroy error', e);
+      }
       ytPlayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -335,14 +348,24 @@ const VideoPlayer = forwardRef(function VideoPlayer(
       }
     }
 
+    function handleWaiting() { setIsBuffering(true); }
+    function handlePlaying() { setIsBuffering(false); }
+    function handleCanPlay() { setIsBuffering(false); }
+
     el.addEventListener('play', handlePlay);
     el.addEventListener('pause', handlePause);
     el.addEventListener('seeked', handleSeeked);
+    el.addEventListener('waiting', handleWaiting);
+    el.addEventListener('playing', handlePlaying);
+    el.addEventListener('canplay', handleCanPlay);
 
     return () => {
       el.removeEventListener('play',    handlePlay);
       el.removeEventListener('pause',   handlePause);
       el.removeEventListener('seeked', handleSeeked);
+      el.removeEventListener('waiting', handleWaiting);
+      el.removeEventListener('playing', handlePlaying);
+      el.removeEventListener('canplay', handleCanPlay);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source?.type, source?.url]);
@@ -388,57 +411,57 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     );
   }
 
-  if (renderSource.type === 'youtube') {
-    return (
-      <div className="video-stage">
-        <div
-          ref={containerRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-        />
-        {/* Non-host overlay: blocks all pointer events reaching the iframe */}
-        {!isHost && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
-        )}
-      </div>
-    );
-  }
-
-  if (renderSource.type === 'file') {
-    // Local files play via the browser's native hardware decoder — no
-    // re-encoding needed. The .video-stage CSS rule stretches the element
-    // to fill its container at any resolution (object-fit: contain keeps
-    // the aspect ratio), so a 1080p file fills full screen properly instead
-    // of being capped to a small fixed box.
-    const isLocal = renderSource.isLocal;
-    return (
-      <div className="video-stage">
-        <video
-          ref={fileVideoRef}
-          src={renderSource.url}
-          playsInline
-          controls={false}
-          onLoadedMetadata={flushPending}
-          onError={() => {
-            // Don't propagate errors during source transitions (e.g.
-            // the old blob URL was revoked while the <video> still
-            // referenced it — this is expected, not a real playback error)
-            if (sourceTransitionRef.current) return;
-            onPlaybackError?.();
-          }}
-          style={{ pointerEvents: 'none' }}
-        />
-        {isLocal && (
-          <div className="local-file-badge" title="Playing from your local device — only you can see this">
-            📁 Local file
-          </div>
-        )}
-      </div>
-    );
-  }
+  const isYouTube = renderSource.type === 'youtube';
+  const isFile = renderSource.type === 'file';
 
   return (
-    <div className="video-stage video-stage--empty">
-      <p>This link can't be played here.</p>
+    <div className="video-stage">
+      {/* YouTube container is ALWAYS in the DOM so that ytPlayer.destroy() 
+          can run safely without throwing uncatchable async errors when switching to a file. */}
+      <div
+        ref={containerRef}
+        style={{ 
+          position: 'absolute', 
+          inset: 0, 
+          width: '100%', 
+          height: '100%',
+          display: isYouTube ? 'block' : 'none'
+        }}
+      />
+      {/* Non-host overlay: blocks all pointer events reaching the iframe */}
+      {isYouTube && !isHost && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 10 }} />
+      )}
+
+      {/* Local file player */}
+      {isFile && (
+        <>
+          <video
+            ref={fileVideoRef}
+            src={renderSource.url}
+            playsInline
+            controls={false}
+            onLoadedMetadata={flushPending}
+            onError={() => {
+              if (sourceTransitionRef.current) return;
+              onPlaybackError?.();
+            }}
+            style={{ pointerEvents: 'none' }}
+          />
+          {renderSource.isLocal && (
+            <div className="local-file-badge" title="Playing from your local device — only you can see this">
+              📁 Local file
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Buffering Spinner */}
+      {isBuffering && (
+        <div className="buffering-spinner-overlay">
+          <div className="waiting-spinner" aria-hidden="true" />
+        </div>
+      )}
     </div>
   );
 });

@@ -4,8 +4,8 @@
  * Shown to participants when the host plays a local file.
  * Two paths:
  *   1. "Load my own copy" — instant, full quality
- *   2. "Stream from host" — P2P DataChannel download; shows progress bar,
- *      then auto-dismisses when ready
+ *   2. "Stream from host" — P2P DataChannel streaming (chunk-by-chunk HTTP range request);
+ *      starts instantly
  *
  * Also renders a persistent "Switch source" button after a choice is made,
  * so participants can change their mind at any time.
@@ -54,7 +54,7 @@ export default function LocalFilePrompt({
           </div>
         )}
 
-        {streamReady && (
+        {wantStream && streamReady && (
           <p className="local-prompt-ready">
             ✅ Stream ready! Starting playback…
           </p>
@@ -64,8 +64,8 @@ export default function LocalFilePrompt({
           <p className="local-prompt-error">{streamError}</p>
         )}
 
-        {/* Only show options if not already streaming */}
-        {!isStreaming && !streamReady && (
+        {/* Only show options if user hasn't made a choice */}
+        {!wantStream && (
           <>
             <p className="local-prompt-desc">Choose how you want to watch:</p>
             <div className="local-prompt-options">
@@ -93,7 +93,7 @@ export default function LocalFilePrompt({
                 <div className="local-prompt-option-icon">📡</div>
                 <div className="local-prompt-option-text">
                   <strong>Stream from host</strong>
-                  <span>Downloads peer-to-peer · playback starts when ready · may take a moment</span>
+                  <span>Streams instantly from host · like YouTube · supports seeking</span>
                 </div>
               </button>
             </div>
