@@ -15,12 +15,57 @@ const DIRECT_FILE_EXTENSIONS = ['.mp4', '.webm', '.ogg', '.ogv', '.mov', '.m3u8'
 // .mkv files that DO happen to use a supported codec) but flag the risk.
 const SHAKY_EXTENSIONS = ['.mkv', '.avi'];
 
-export function parseVideoSource(rawUrl) {
+// Hosts that serve a playable page at /v/ID (or similar) and a bare,
+// frameable player at /e/ID/. We can't control play/pause on these the way
+// we do YouTube (no postMessage API), but we CAN still show them and let the
+// person who pasted the link hit play locally — same tradeoff as any
+// "paste an iframe embed" video source.
+const EMBED_HOST_PATTERNS = [
+  {
+    hosts: ['tpead.net', 'www.tpead.net'],
+    // /v/ID or /e/ID/  ->  /e/ID/
+    toEmbedUrl(url) {
+      const parts = url.pathname.split('/').filter(Boolean); // ['v'|'e', ID, ...]
+      if (parts.length < 2) return null;
+      const id = parts[1];
+      if (!id) return null;
+      return `https://tpead.net/e/${id}/`;
+    },
+  },
+];
+
+// If the user pasted a whole <iframe> tag instead of a bare link, pull the
+// src attribute out of it and continue parsing from there.
+function extractIframeSrc(raw) {
+  const match = raw.match(/<iframe[^>]*\ssrc=["']([^"']+)["']/i);
+  return match ? match[1] : null;
+}
+
+export function parseVideoSource(rawInput) {
+  const trimmedInput = rawInput.trim();
+  const iframeSrc = extractIframeSrc(trimmedInput);
+  const rawUrl = iframeSrc || trimmedInput;
+
   let url;
   try {
-    url = new URL(rawUrl.trim());
+    url = new URL(rawUrl);
   } catch {
     return { type: 'invalid', error: "That doesn't look like a valid link." };
+  }
+
+  for (const pattern of EMBED_HOST_PATTERNS) {
+    if (pattern.hosts.includes(url.hostname)) {
+      const embedUrl = pattern.toEmbedUrl(url);
+      if (!embedUrl) {
+        return { type: 'invalid', error: "Could not find a video in that link." };
+      }
+      return {
+        type: 'embed',
+        url: embedUrl,
+        warning:
+          "This is an embedded player, so play/pause/seek can't be synced automatically — everyone will need to hit play on their own end.",
+      };
+    }
   }
 
   if (YOUTUBE_HOSTS.has(url.hostname)) {
@@ -45,7 +90,7 @@ export function parseVideoSource(rawUrl) {
   return {
     type: 'unsupported',
     error:
-      "This looks like a streaming site page rather than a playable video. Subscription sites (Netflix, Disney+, Prime Video, etc.) block outside players by design, so MovDate works with YouTube links or direct video file links (.mp4/.webm/.mkv/.m3u8).",
+      "This looks like a streaming site page rather than a playable video. Subscription sites (Netflix, Disney+, Prime Video, etc.) block outside players by design, so MovDate works with YouTube links, direct video file links (.mp4/.webm/.mkv/.m3u8), or a supported embed link/iframe.",
   };
 }
 

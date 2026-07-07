@@ -13,6 +13,69 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   const hasPlayedRef = useRef(false);
   const [isBuffering, setIsBuffering] = useState(false);
 
+  // ── Embed sync helpers ──────────────────────────────────────────────
+  // Generic <iframe> embeds (tpead.net, etc.) don't expose a postMessage
+  // API, so we can't actually press play/pause/seek inside them. Instead
+  // we surface the host's action as a synced countdown/banner so everyone
+  // presses play at roughly the same moment, or knows to pause/seek
+  // themselves to match.
+  const [embedCountdown, setEmbedCountdown] = useState(null);
+  const [embedBanner, setEmbedBanner] = useState(null);
+  const embedCountdownTimerRef = useRef(null);
+  const embedBannerTimerRef = useRef(null);
+
+  function formatTime(t) {
+    const total = Math.max(0, Math.floor(t || 0));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function runEmbedCountdown() {
+    setEmbedBanner(null);
+    if (embedBannerTimerRef.current) clearTimeout(embedBannerTimerRef.current);
+    if (embedCountdownTimerRef.current) clearInterval(embedCountdownTimerRef.current);
+    let n = 3;
+    setEmbedCountdown(n);
+    embedCountdownTimerRef.current = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(embedCountdownTimerRef.current);
+        embedCountdownTimerRef.current = null;
+        setEmbedCountdown(null);
+      } else {
+        setEmbedCountdown(n);
+      }
+    }, 1000);
+  }
+
+  function showEmbedBanner(text, ms = 4000) {
+    if (embedCountdownTimerRef.current) {
+      clearInterval(embedCountdownTimerRef.current);
+      embedCountdownTimerRef.current = null;
+      setEmbedCountdown(null);
+    }
+    setEmbedBanner(text);
+    if (embedBannerTimerRef.current) clearTimeout(embedBannerTimerRef.current);
+    embedBannerTimerRef.current = setTimeout(() => setEmbedBanner(null), ms);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (embedCountdownTimerRef.current) clearInterval(embedCountdownTimerRef.current);
+      if (embedBannerTimerRef.current) clearTimeout(embedBannerTimerRef.current);
+    };
+  }, []);
+
+  // Reset embed sync UI whenever the source itself changes (new link loaded).
+  useEffect(() => {
+    setEmbedCountdown(null);
+    setEmbedBanner(null);
+    if (embedCountdownTimerRef.current) clearInterval(embedCountdownTimerRef.current);
+    if (embedBannerTimerRef.current) clearTimeout(embedBannerTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source?.type, source?.url]);
+
   // Guards against transient null source during source transitions.
   // When the host switches from YouTube to local file (or vice versa),
   // the source prop can briefly flash to null before the new value is set.
@@ -113,6 +176,16 @@ const VideoPlayer = forwardRef(function VideoPlayer(
     const { kind, time } = action;
     if (source?.type === 'youtube') {
       applyToYT(kind, time);
+    } else if (source?.type === 'embed') {
+      // No control surface into the iframe — surface the host's action as
+      // shared UI instead of trying (and failing) to drive the player.
+      if (kind === 'play') {
+        runEmbedCountdown();
+      } else if (kind === 'pause') {
+        showEmbedBanner('⏸ Host paused — pause yours too');
+      } else if (kind === 'seek') {
+        showEmbedBanner(`⏩ Host jumped to ${formatTime(time)} — seek yours to match`);
+      }
     } else {
       const el = fileVideoRef.current;
       if (!el) return;
@@ -413,6 +486,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
 
   const isYouTube = renderSource.type === 'youtube';
   const isFile = renderSource.type === 'file';
+  const isEmbed = renderSource.type === 'embed';
 
   return (
     <div className="video-stage">
@@ -454,6 +528,54 @@ const VideoPlayer = forwardRef(function VideoPlayer(
             </div>
           )}
         </>
+      )}
+
+      {/* Generic embed player (e.g. tpead.net, or any pasted <iframe> link).
+          No postMessage API to hook into, so we can't sync play/pause/seek
+          the way we do for YouTube — each viewer just has their own iframe
+          and presses play locally. */}
+      {isEmbed && (
+        <iframe
+          key={renderSource.url}
+          src={renderSource.url}
+          width="100%"
+          height="100%"
+          style={{ position: 'absolute', inset: 0, border: 'none' }}
+          allow="autoplay; fullscreen"
+          allowFullScreen
+          scrolling="no"
+          frameBorder="0"
+          referrerPolicy="no-referrer"
+          title="Embedded video"
+        />
+      )}
+
+      {/* Embed sync UI: countdown before everyone presses play, or a
+          banner nudging viewers to pause/seek to match the host. */}
+      {isEmbed && embedCountdown != null && (
+        <div className="embed-sync-overlay" style={{
+          position: 'absolute', inset: 0, zIndex: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.55)', pointerEvents: 'none',
+        }}>
+          <div style={{ textAlign: 'center', color: '#fff' }}>
+            <div style={{ fontSize: '3rem', fontWeight: 700, lineHeight: 1 }}>
+              {embedCountdown}
+            </div>
+            <div style={{ fontSize: '0.95rem', opacity: 0.9, marginTop: 8 }}>
+              Press play together…
+            </div>
+          </div>
+        </div>
+      )}
+      {isEmbed && embedBanner && (
+        <div className="embed-sync-banner" style={{
+          position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 20, background: 'rgba(0,0,0,0.75)', color: '#fff',
+          padding: '8px 14px', borderRadius: 8, fontSize: '0.9rem',
+        }}>
+          {embedBanner}
+        </div>
       )}
 
       {/* Buffering Spinner */}

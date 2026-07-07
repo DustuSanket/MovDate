@@ -1,0 +1,14 @@
+{
+	"appId": "com.movdate.app",
+	"appName": "MovDate",
+	"webDir": "dist",
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 3000,
+			"launchAutoHide": false,
+			"backgroundColor": "#0d0b14",
+			"showSpinner": false,
+			"androidScaleType": "CENTER_CROP"
+		}
+	}
+}

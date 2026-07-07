@@ -1,0 +1,194 @@
+[
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxxhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxxhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\layout_activity_main.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\layout\\activity_main.xml"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-hdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable_ic_launcher_background.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable\\ic_launcher_background.xml"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-hdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-hdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-hdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-land-xhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-land-xhdpi\\splash.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-land-xxhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-land-xxhdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-port-xhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-port-xhdpi\\splash.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xhdpi\\ic_launcher_foreground.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\xml_file_paths.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\xml\\file_paths.xml"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-v24_ic_launcher_foreground.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-v24\\ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-mdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-mdpi_ic_launcher_foreground.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-mdpi\\ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxhdpi_ic_launcher_foreground.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxhdpi\\ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-mdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-mdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-mdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-land-mdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-land-mdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxxhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-port-xxxhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-port-xxxhdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-land-xxxhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-land-xxxhdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-land-hdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-land-hdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-port-mdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-port-mdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-port-hdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-port-hdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\drawable-port-xxhdpi_splash.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\drawable-port-xxhdpi\\splash.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-hdpi_ic_launcher_foreground.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-hdpi\\ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-xhdpi_ic_launcher_foreground.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-xhdpi/ic_launcher_foreground.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\xml_config.xml.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\xml\\config.xml"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-debug-44:\\mipmap-xxxhdpi_ic_launcher_foreground.png.flat",
+        "source": "C:\\Users\\sanke\\.gradle\\daemon\\8.14.3\\com.movdate.app-main-46:\\mipmap-xxxhdpi\\ic_launcher_foreground.png"
+    },
+    {
+        "merged": "com.movdate.app-debug-44:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.movdate.app-main-46:/mipmap-hdpi/ic_launcher.png"
+    }
+]

@@ -1,0 +1,267 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.movdate.app"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="36" />
+10
+11    <uses-permission android:name="android.permission.CAMERA" />
+11-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:3:5-65
+11-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:3:22-62
+12    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+12-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:4:5-71
+12-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:4:22-68
+13    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+13-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:5:5-80
+13-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:5:22-77
+14
+15    <!-- Permissions -->
+16
+17    <uses-permission android:name="android.permission.INTERNET" />
+17-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:43:5-67
+17-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:43:22-64
+18
+19    <queries>
+19-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:7:5-17:15
+20        <intent>
+20-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:8:9-10:18
+21            <action android:name="android.media.action.IMAGE_CAPTURE" />
+21-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:9:13-73
+21-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:9:21-70
+22        </intent>
+23        <intent>
+23-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:11:9-13:18
+24            <action android:name="android.intent.action.GET_CONTENT" />
+24-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:12:13-72
+24-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:12:21-69
+25        </intent>
+26        <intent>
+26-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:14:9-16:18
+27            <action android:name="android.intent.action.PICK" />
+27-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:15:13-65
+27-->[:capacitor-camera] F:\Projects\movdate\client\node_modules\@capacitor\camera\android\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:15:21-62
+28        </intent>
+29    </queries>
+30
+31    <permission
+31-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:22:5-24:47
+32        android:name="com.movdate.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+32-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:23:9-81
+33        android:protectionLevel="signature" />
+33-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:24:9-44
+34
+35    <uses-permission android:name="com.movdate.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+35-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:26:5-97
+35-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:26:22-94
+36
+37    <application
+37-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:6:5-39:19
+38        android:allowBackup="true"
+38-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:7:9-35
+39        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+39-->[androidx.core:core:1.17.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\11094a199bb7945826b161d8a9c17beb\transformed\core-1.17.0\AndroidManifest.xml:28:18-86
+40        android:debuggable="true"
+41        android:extractNativeLibs="false"
+42        android:icon="@mipmap/ic_launcher"
+42-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:8:9-43
+43        android:label="@string/app_name"
+43-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:9:9-41
+44        android:requestLegacyExternalStorage="true"
+44-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:8:18-61
+45        android:roundIcon="@mipmap/ic_launcher_round"
+45-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:10:9-54
+46        android:supportsRtl="true"
+46-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:11:9-35
+47        android:testOnly="true"
+48        android:theme="@style/AppTheme" >
+48-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:12:9-40
+49        <activity
+49-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:14:9-28:20
+50            android:name="com.movdate.app.MainActivity"
+50-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:16:13-41
+51            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+51-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:15:13-148
+52            android:exported="true"
+52-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:21:13-36
+53            android:label="@string/title_activity_main"
+53-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:17:13-56
+54            android:launchMode="singleTask"
+54-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:19:13-44
+55            android:screenOrientation="portrait"
+55-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:20:13-49
+56            android:theme="@style/AppTheme.NoActionBarLaunch" >
+56-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:18:13-62
+57            <intent-filter>
+57-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:23:13-26:29
+58                <action android:name="android.intent.action.MAIN" />
+58-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:24:17-69
+58-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:24:25-66
+59
+60                <category android:name="android.intent.category.LAUNCHER" />
+60-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:25:17-77
+60-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:25:27-74
+61            </intent-filter>
+62        </activity>
+63
+64        <provider
+65            android:name="androidx.core.content.FileProvider"
+65-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:31:13-62
+66            android:authorities="com.movdate.app.fileprovider"
+66-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:32:13-64
+67            android:exported="false"
+67-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:33:13-37
+68            android:grantUriPermissions="true" >
+68-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:34:13-47
+69            <meta-data
+69-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:35:13-37:64
+70                android:name="android.support.FILE_PROVIDER_PATHS"
+70-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:36:17-67
+71                android:resource="@xml/file_paths" />
+71-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:37:17-51
+72        </provider>
+73
+74        <activity
+74-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:9:9-11:86
+75            android:name="io.ionic.libs.ioncameralib.view.IONCAMRLoadingActivity"
+75-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:10:13-82
+76            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" />
+76-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:11:13-83
+77        <activity
+77-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:12:9-16:36
+78            android:name="io.ionic.libs.ioncameralib.view.IONCAMRImageEditorActivity"
+78-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:13:13-86
+79            android:enableOnBackInvokedCallback="true"
+79-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:14:13-55
+80            android:theme="@android:style/Theme.Black.NoTitleBar" />
+80-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:15:13-66
+81        <activity
+81-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:17:9-20:86
+82            android:name="io.ionic.libs.ioncameralib.view.IONCAMROpenPhotoPickerActivity"
+82-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:18:13-90
+83            android:exported="false"
+83-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:19:13-37
+84            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen" /> <!-- Trigger Google Play services to install the backported photo picker module. -->
+84-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:20:13-83
+85        <service
+85-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:22:9-34:19
+86            android:name="com.google.android.gms.metadata.ModuleDependencies"
+86-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:23:13-78
+87            android:enabled="false"
+87-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:24:13-36
+88            android:exported="false" >
+88-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:25:13-37
+89            <intent-filter>
+89-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:27:13-29:29
+90                <action android:name="com.google.android.gms.metadata.MODULE_DEPENDENCIES" />
+90-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:28:17-94
+90-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:28:25-91
+91            </intent-filter>
+92
+93            <meta-data
+93-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:31:13-33:36
+94                android:name="photopicker_activity:0:required"
+94-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:32:17-63
+95                android:value="" />
+95-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:33:17-33
+96        </service>
+97
+98        <provider
+98-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:36:9-44:20
+99            android:name="io.ionic.libs.ioncameralib.IONCAMRFileProvider"
+99-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:37:13-74
+100            android:authorities="com.movdate.app.camera.provider"
+100-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:38:13-67
+101            android:exported="false"
+101-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:39:13-37
+102            android:grantUriPermissions="true" >
+102-->[io.ionic.libs:ioncamera-android:1.0.1] C:\Users\sanke\.gradle\caches\8.14.3\transforms\a295b38db932f479cec579b2dc812c1a\transformed\ioncamera-android-1.0.1\AndroidManifest.xml:40:13-47
+103            <meta-data
+103-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:35:13-37:64
+104                android:name="android.support.FILE_PROVIDER_PATHS"
+104-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:36:17-67
+105                android:resource="@xml/ioncamera_paths" />
+105-->F:\Projects\movdate\client\android\app\src\main\AndroidManifest.xml:37:17-51
+106        </provider>
+107        <provider
+107-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+108            android:name="androidx.startup.InitializationProvider"
+108-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+109            android:authorities="com.movdate.app.androidx-startup"
+109-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+110            android:exported="false" >
+110-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+111            <meta-data
+111-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+112                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+112-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+113                android:value="androidx.startup" />
+113-->[androidx.emoji2:emoji2:1.3.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\353d69426d62513a7e19e841051a3a44\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+114            <meta-data
+114-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\14a3b51da1167f75215e7e32d2231e74\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+115                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+115-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\14a3b51da1167f75215e7e32d2231e74\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+116                android:value="androidx.startup" />
+116-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\14a3b51da1167f75215e7e32d2231e74\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+117            <meta-data
+117-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:29:13-31:52
+118                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+118-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:30:17-85
+119                android:value="androidx.startup" />
+119-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:31:17-49
+120        </provider>
+121        <!--
+122        Service for holding metadata. Cannot be instantiated.
+123        Metadata will be merged from other manifests.
+124        -->
+125        <service
+125-->[androidx.camera:camera-core:1.4.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\1bed5d73aa0783bafdf646ee8d6db11d\transformed\camera-core-1.4.2\AndroidManifest.xml:29:9-33:78
+126            android:name="androidx.camera.core.impl.MetadataHolderService"
+126-->[androidx.camera:camera-core:1.4.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\1bed5d73aa0783bafdf646ee8d6db11d\transformed\camera-core-1.4.2\AndroidManifest.xml:30:13-75
+127            android:enabled="false"
+127-->[androidx.camera:camera-core:1.4.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\1bed5d73aa0783bafdf646ee8d6db11d\transformed\camera-core-1.4.2\AndroidManifest.xml:31:13-36
+128            android:exported="false" />
+128-->[androidx.camera:camera-core:1.4.2] C:\Users\sanke\.gradle\caches\8.14.3\transforms\1bed5d73aa0783bafdf646ee8d6db11d\transformed\camera-core-1.4.2\AndroidManifest.xml:32:13-37
+129
+130        <receiver
+130-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:34:9-52:20
+131            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+131-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:35:13-76
+132            android:directBootAware="false"
+132-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:36:13-44
+133            android:enabled="true"
+133-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:37:13-35
+134            android:exported="true"
+134-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:38:13-36
+135            android:permission="android.permission.DUMP" >
+135-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:39:13-57
+136            <intent-filter>
+136-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:40:13-42:29
+137                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+137-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:17-91
+137-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:25-88
+138            </intent-filter>
+139            <intent-filter>
+139-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:43:13-45:29
+140                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+140-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:17-85
+140-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:25-82
+141            </intent-filter>
+142            <intent-filter>
+142-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:46:13-48:29
+143                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+143-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:17-88
+143-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:25-85
+144            </intent-filter>
+145            <intent-filter>
+145-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:49:13-51:29
+146                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+146-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:17-95
+146-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\sanke\.gradle\caches\8.14.3\transforms\f95ab50c54d3211c648684c462933e30\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:25-92
+147            </intent-filter>
+148        </receiver>
+149    </application>
+150
+151</manifest>

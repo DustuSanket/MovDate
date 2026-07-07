@@ -52,7 +52,7 @@ export default function SourceControls({
             type="text"
             value={linkInput}
             onChange={(event) => setLinkInput(event.target.value)}
-            placeholder="Paste a YouTube or direct video (.mp4) link"
+            placeholder="Paste a YouTube, direct video (.mp4), or embed link/iframe"
             aria-label="Video link"
           />
           <button type="submit">{hasVideo ? 'Switch video' : 'Load video'}</button>
