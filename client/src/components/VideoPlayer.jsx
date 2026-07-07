@@ -547,6 +547,15 @@ const VideoPlayer = forwardRef(function VideoPlayer(
           frameBorder="0"
           referrerPolicy="no-referrer"
           title="Embedded video"
+          // Deliberately NOT including allow-popups, allow-popups-to-escape-sandbox,
+          // allow-top-navigation, or allow-top-navigation-by-user-activation.
+          // Cyberlocker-style embeds like this one commonly monetize with
+          // popunder ads (window.open) and forced full-page redirects
+          // (window.top.location = ...) — this sandbox combination blocks
+          // both at the browser level, regardless of what the embedded
+          // page's own JS tries to do. allow-scripts + allow-same-origin
+          // are still needed for the actual video player controls to work.
+          sandbox="allow-scripts allow-same-origin allow-forms"
         />
       )}
 
