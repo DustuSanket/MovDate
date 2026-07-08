@@ -15,6 +15,7 @@ import PermissionModal from "../components/PermissionModal.jsx";
 import LocalFilePrompt from "../components/LocalFilePrompt.jsx";
 import { useLocalFileStream } from "../hooks/useLocalFileStream.js";
 import { App as CapApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 
 export default function Room() {
   const { roomId } = useParams();
@@ -240,6 +241,7 @@ export default function Room() {
   }, [isHost, video?.isPlaying, sendHeartbeat]);
 
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
     const listener = CapApp.addListener("backButton", () => {
       if (window.confirm("Leave this room?")) {
         navigate("/");
