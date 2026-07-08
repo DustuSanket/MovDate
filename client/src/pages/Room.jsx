@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { useRoomSocket } from '../hooks/useRoomSocket.js';
-import { useLocalMedia } from '../hooks/useLocalMedia.js';
-import { useMeshCall } from '../hooks/useMeshCall.js';
-import VideoPlayer from '../components/VideoPlayer.jsx';
-import SourceControls from '../components/SourceControls.jsx';
-import PlaybackControls from '../components/PlaybackControls.jsx';
-import CallGrid from '../components/CallGrid.jsx';
-import CallOverlay from '../components/CallOverlay.jsx';
-import ChatPanel from '../components/ChatPanel.jsx';
-import InviteBar from '../components/InviteBar.jsx';
-import SettingsModal from '../components/SettingsModal.jsx';
-import PermissionModal from '../components/PermissionModal.jsx';
-import LocalFilePrompt from '../components/LocalFilePrompt.jsx';
-import { useLocalFileStream } from '../hooks/useLocalFileStream.js';
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
+import { useRoomSocket } from "../hooks/useRoomSocket.js";
+import { useLocalMedia } from "../hooks/useLocalMedia.js";
+import { useMeshCall } from "../hooks/useMeshCall.js";
+import VideoPlayer from "../components/VideoPlayer.jsx";
+import SourceControls from "../components/SourceControls.jsx";
+import PlaybackControls from "../components/PlaybackControls.jsx";
+import CallGrid from "../components/CallGrid.jsx";
+import CallOverlay from "../components/CallOverlay.jsx";
+import ChatPanel from "../components/ChatPanel.jsx";
+import InviteBar from "../components/InviteBar.jsx";
+import SettingsModal from "../components/SettingsModal.jsx";
+import PermissionModal from "../components/PermissionModal.jsx";
+import LocalFilePrompt from "../components/LocalFilePrompt.jsx";
+import { useLocalFileStream } from "../hooks/useLocalFileStream.js";
+import { App as CapApp } from "@capacitor/app";
 
 export default function Room() {
   const { roomId } = useParams();
@@ -21,40 +22,45 @@ export default function Room() {
   const navigate = useNavigate();
 
   const [name, setName] = useState(() => {
-    return location.state?.name || sessionStorage.getItem(`movdate_name_${roomId}`) || '';
+    return (
+      location.state?.name ||
+      sessionStorage.getItem(`movdate_name_${roomId}`) ||
+      ""
+    );
   });
-  const [pendingName, setPendingName] = useState('');
+  const [pendingName, setPendingName] = useState("");
 
   // Persist name across refreshes
   useEffect(() => {
     if (name) sessionStorage.setItem(`movdate_name_${roomId}`, name);
   }, [name, roomId]);
 
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState("chat");
   const [displayTime, setDisplayTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [mutedAutoplay, setMutedAutoplay] = useState(false);
   const [playbackError, setPlaybackError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [overlayHidden, setOverlayHidden] = useState(false);
   const [controlsHidden, setControlsHidden] = useState(false);
   const [isHoveringStage, setIsHoveringStage] = useState(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [mediaPerms, setMediaPerms] = useState(() => {
     try {
-      const saved = localStorage.getItem('movdate_media_perms');
+      const saved = localStorage.getItem("movdate_media_perms");
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return { mic: false, camera: false, answered: false };
   });
   const [showPermModal, setShowPermModal] = useState(() => {
-    return !localStorage.getItem('movdate_media_perms');
+    return !localStorage.getItem("movdate_media_perms");
   });
   const [localFileUrl, setLocalFileUrl] = useState(null);
   const localFileRef = useRef(null);
 
   // Local file mode: 'none' | 'local-copy' | 'stream'
-  const [localFileMode, setLocalFileMode] = useState('none');
+  const [localFileMode, setLocalFileMode] = useState("none");
   const [hostFile, setHostFile] = useState(null);
   const [localPromptDismissed, setLocalPromptDismissed] = useState(false);
 
@@ -67,7 +73,9 @@ export default function Room() {
   const wantsProtected = location.state?.protected || false;
   const isCreating = location.state?.isCreating || false;
 
-  const [hostSecret] = useState(() => sessionStorage.getItem(`movdate_host_${roomId}`) || null);
+  const [hostSecret] = useState(
+    () => sessionStorage.getItem(`movdate_host_${roomId}`) || null,
+  );
 
   const {
     participants,
@@ -101,7 +109,11 @@ export default function Room() {
     rejectParticipant,
     setProtected,
     hostSecret: returnedHostSecret,
-  } = useRoomSocket(roomId, name, { protected: wantsProtected, hostSecret, isCreating });
+  } = useRoomSocket(roomId, name, {
+    protected: wantsProtected,
+    hostSecret,
+    isCreating,
+  });
 
   useEffect(() => {
     if (returnedHostSecret) {
@@ -127,9 +139,21 @@ export default function Room() {
     switchSpeaker,
     requestPermission,
   } = useLocalMedia({ permissions: mediaPerms });
-  const { remoteStreams, replaceLocalTrack, dataChannels } = useMeshCall({ you, participants, localStream, reconnectToken });
+  const { remoteStreams, replaceLocalTrack, dataChannels } = useMeshCall({
+    you,
+    participants,
+    localStream,
+    reconnectToken,
+  });
 
-  const { streamUrl, streamReady, streamError, streamProgress, streamFileToPeer, hostSendProgress } = useLocalFileStream({
+  const {
+    streamUrl,
+    streamReady,
+    streamError,
+    streamProgress,
+    streamFileToPeer,
+    hostSendProgress,
+  } = useLocalFileStream({
     isHost,
     hostId,
     dataChannels,
@@ -139,11 +163,14 @@ export default function Room() {
   // ── 60-second countdown for cold-start connecting screen ──
   const [connectCountdown, setConnectCountdown] = useState(60);
   useEffect(() => {
-    if (status !== 'connecting' || !name) return undefined;
+    if (status !== "connecting" || !name) return undefined;
     setConnectCountdown(60);
     const timer = setInterval(() => {
       setConnectCountdown((prev) => {
-        if (prev <= 1) { clearInterval(timer); return 0; }
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -156,7 +183,9 @@ export default function Room() {
   }, [muted, cameraOff, you, updateMediaState]);
 
   const isHostRef = useRef(isHost);
-  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+  useEffect(() => {
+    isHostRef.current = isHost;
+  }, [isHost]);
 
   useEffect(() => {
     if (!videoEventBus) return undefined;
@@ -180,14 +209,14 @@ export default function Room() {
       }
     }
 
-    videoEventBus.addEventListener('play', handlePlay);
-    videoEventBus.addEventListener('pause', handlePause);
-    videoEventBus.addEventListener('seek', handleSeek);
+    videoEventBus.addEventListener("play", handlePlay);
+    videoEventBus.addEventListener("pause", handlePause);
+    videoEventBus.addEventListener("seek", handleSeek);
 
     return () => {
-      videoEventBus.removeEventListener('play', handlePlay);
-      videoEventBus.removeEventListener('pause', handlePause);
-      videoEventBus.removeEventListener('seek', handleSeek);
+      videoEventBus.removeEventListener("play", handlePlay);
+      videoEventBus.removeEventListener("pause", handlePause);
+      videoEventBus.removeEventListener("seek", handleSeek);
     };
   }, [videoEventBus]);
 
@@ -210,6 +239,14 @@ export default function Room() {
     return () => clearInterval(interval);
   }, [isHost, video?.isPlaying, sendHeartbeat]);
 
+  useEffect(() => {
+    const listener = CapApp.addListener("backButton", () => {
+      if (window.confirm("Leave this room?")) {
+        navigate("/");
+      }
+    });
+    return () => listener.remove();
+  }, [navigate]);
   // Guard: when the host picks a local file we set a flag so the video?.url
   // change effect doesn't revoke the blob URL we JUST created. The flag is
   // set before loadVideo() and cleared after the effect runs.
@@ -222,10 +259,10 @@ export default function Room() {
 
     if (!isHost) {
       if (localFileUrl) URL.revokeObjectURL(localFileUrl);
-      setLocalFileMode('none');
+      setLocalFileMode("none");
       setLocalPromptDismissed(false);
       setLocalFileUrl(null);
-    } else if (!video?.url?.startsWith?.('local:')) {
+    } else if (!video?.url?.startsWith?.("local:")) {
       // Switching away from a local file to YouTube/URL — clean up
       if (!hostLoadingLocalRef.current && localFileUrl) {
         URL.revokeObjectURL(localFileUrl);
@@ -239,14 +276,18 @@ export default function Room() {
 
   useEffect(() => {
     function handleFullscreenChange() {
-      const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+      const fsElement =
+        document.fullscreenElement || document.webkitFullscreenElement;
       setIsFullscreen(Boolean(fsElement) && fsElement === stageWrapRef.current);
     }
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange,
+      );
     };
   }, []);
 
@@ -266,14 +307,14 @@ export default function Room() {
 
     resetIdleTimer();
     const el = stageWrapRef.current;
-    el?.addEventListener('mousemove', resetIdleTimer);
-    el?.addEventListener('pointermove', resetIdleTimer);
-    el?.addEventListener('touchstart', resetIdleTimer);
+    el?.addEventListener("mousemove", resetIdleTimer);
+    el?.addEventListener("pointermove", resetIdleTimer);
+    el?.addEventListener("touchstart", resetIdleTimer);
 
     return () => {
-      el?.removeEventListener('mousemove', resetIdleTimer);
-      el?.removeEventListener('pointermove', resetIdleTimer);
-      el?.removeEventListener('touchstart', resetIdleTimer);
+      el?.removeEventListener("mousemove", resetIdleTimer);
+      el?.removeEventListener("pointermove", resetIdleTimer);
+      el?.removeEventListener("touchstart", resetIdleTimer);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [isFullscreen, deviceSettingsOpen]);
@@ -291,7 +332,8 @@ export default function Room() {
   function toggleFullscreen() {
     const el = stageWrapRef.current;
     if (!el) return;
-    const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+    const fsElement =
+      document.fullscreenElement || document.webkitFullscreenElement;
     if (!fsElement) {
       const request = el.requestFullscreen || el.webkitRequestFullscreen;
       request?.call(el);
@@ -301,17 +343,17 @@ export default function Room() {
     }
   }
 
-  const isLocalFileSentinel = video?.url?.startsWith?.('local:');
+  const isLocalFileSentinel = video?.url?.startsWith?.("local:");
   let videoSource = null;
   if (video?.url && !isLocalFileSentinel) {
     videoSource = { type: video.type, url: video.url, id: video.id };
   } else if (video?.url && isLocalFileSentinel) {
     if (isHost && localFileUrl) {
-      videoSource = { type: 'file', url: localFileUrl, isLocal: true };
-    } else if (!isHost && localFileMode === 'local-copy' && localFileUrl) {
-      videoSource = { type: 'file', url: localFileUrl, isLocal: true };
-    } else if (!isHost && localFileMode === 'stream' && streamUrl) {
-      videoSource = { type: 'file', url: streamUrl, isLocal: false };
+      videoSource = { type: "file", url: localFileUrl, isLocal: true };
+    } else if (!isHost && localFileMode === "local-copy" && localFileUrl) {
+      videoSource = { type: "file", url: localFileUrl, isLocal: true };
+    } else if (!isHost && localFileMode === "stream" && streamUrl) {
+      videoSource = { type: "file", url: streamUrl, isLocal: false };
     }
   }
 
@@ -343,7 +385,7 @@ export default function Room() {
     hostLoadingLocalRef.current = true;
 
     const parsed = {
-      type: 'file',
+      type: "file",
       url: `local:${file.name}`,
       isLocal: true,
       localFileName: file.name,
@@ -356,38 +398,38 @@ export default function Room() {
     // has time to detach from it before the browser invalidates it
     if (oldUrl) setTimeout(() => URL.revokeObjectURL(oldUrl), 200);
 
-    event.target.value = '';
+    event.target.value = "";
   }
 
   function handleParticipantFilePick(file) {
     if (localFileUrl) URL.revokeObjectURL(localFileUrl);
     const url = URL.createObjectURL(file);
     setLocalFileUrl(url);
-    setLocalFileMode('local-copy');
+    setLocalFileMode("local-copy");
     setLocalPromptDismissed(true);
   }
 
   function handleUseStream() {
-    setLocalFileMode('stream');
+    setLocalFileMode("stream");
     // prompt stays open; dismissed once streamReady
   }
 
   // Participant resets their source choice — brings the modal back
   function handleSwitchMode() {
     // Revoke local-copy object URL if that was the active mode
-    if (localFileMode === 'local-copy' && localFileUrl) {
+    if (localFileMode === "local-copy" && localFileUrl) {
       URL.revokeObjectURL(localFileUrl);
       setLocalFileUrl(null);
     }
     // Setting localFileMode to 'none' causes wantStream to become false,
     // which triggers the hook to clear streamReady/streamUrl/streamProgress
     // so the modal renders with fresh options instead of "Stream ready!".
-    setLocalFileMode('none');
+    setLocalFileMode("none");
     setLocalPromptDismissed(false);
   }
 
   useEffect(() => {
-    if (streamReady && localFileMode === 'stream') {
+    if (streamReady && localFileMode === "stream") {
       setLocalPromptDismissed(true);
     }
   }, [streamReady, localFileMode]);
@@ -400,7 +442,7 @@ export default function Room() {
   }, []);
 
   function handleHostPlayPause({ kind, time }) {
-    if (kind === 'play') {
+    if (kind === "play") {
       play(time);
       setAutoplayBlocked(false);
       setMutedAutoplay(false);
@@ -422,15 +464,32 @@ export default function Room() {
       setMutedAutoplay(false);
     }
   }
+  function toggleFullscreen() {
+    const el = stageWrapRef.current;
+    if (!el) return;
+    const fsElement =
+      document.fullscreenElement || document.webkitFullscreenElement;
+    if (!fsElement) {
+      const request = el.requestFullscreen || el.webkitRequestFullscreen;
+      request?.call(el);
+      // Unlock rotation when entering fullscreen so user can go landscape
+      screen.orientation?.unlock?.();
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      exit?.call(document);
+      // Lock back to portrait when leaving fullscreen
+      screen.orientation?.lock?.("portrait").catch(() => {});
+    }
+  }
 
   function handleSeek(time) {
     if (!isHost) return;
-    
+
     // Artificial delay for local file stream seeking to give peers time to buffer
-    if (localFileMode === 'stream' && video.isPlaying) {
+    if (localFileMode === "stream" && video.isPlaying) {
       pause(time);
       playerRef.current?.pauseAt(time);
-      
+
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       seekTimeoutRef.current = setTimeout(() => {
         // Only resume if they are still the host
@@ -458,26 +517,42 @@ export default function Room() {
   }
 
   useEffect(() => {
-    if (!isHost || !videoSource) return undefined;
-
     function handleKeyDown(event) {
       const target = event.target;
       const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      // Still skip while the person is actually typing somewhere (chat box,
+      // name field, etc.) — otherwise every keystroke there would also
+      // trigger playback/overlay actions.
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
 
-      if (event.key === 'ArrowRight') {
+      // "O" toggles the floating call overlay. This is a personal view
+      // preference, not a playback control, so it works for host and
+      // guests alike, video loaded or not, focused element or not.
+      if (event.code === "KeyO" || event.key === "o" || event.key === "O") {
+        event.preventDefault();
+        setOverlayHidden((prev) => !prev);
+        return;
+      }
+
+      if (!isHost || !videoSource) return;
+
+      if (event.key === "ArrowRight") {
         event.preventDefault();
         handleSkip(10);
-      } else if (event.key === 'ArrowLeft') {
+      } else if (event.key === "ArrowLeft") {
         event.preventDefault();
         handleSkip(-10);
+      } else if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        handleTogglePlay();
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, videoSource, displayTime, duration]);
+  }, [isHost, videoSource, displayTime, duration, video?.isPlaying]);
 
   function handlePauseRequestApprove(fromId) {
     const time = playerRef.current?.getCurrentTime?.() ?? 0;
@@ -501,14 +576,14 @@ export default function Room() {
 
   // The error state is handled by navigating back to Home with the error message
   useEffect(() => {
-    if (status === 'error' && connectionError) {
-      navigate('/', { state: { error: connectionError }, replace: true });
+    if (status === "error" && connectionError) {
+      navigate("/", { state: { error: connectionError }, replace: true });
     }
   }, [status, connectionError, navigate]);
 
   // ─── Screens before the main room UI ───────────────────────────────────────
 
-   if (!name) {
+  if (!name) {
     return (
       <div className="join-gate">
         <div className="home-card">
@@ -531,7 +606,7 @@ export default function Room() {
     );
   }
 
-  if (status === 'connecting') {
+  if (status === "connecting") {
     const pct = ((60 - connectCountdown) / 60) * 100;
     return (
       <div className="join-gate">
@@ -541,7 +616,9 @@ export default function Room() {
               <circle className="connecting-ring-bg" cx="50" cy="50" r="42" />
               <circle
                 className="connecting-ring-fill"
-                cx="50" cy="50" r="42"
+                cx="50"
+                cy="50"
+                r="42"
                 style={{ strokeDashoffset: `${264 - (264 * pct) / 100}` }}
               />
             </svg>
@@ -552,29 +629,35 @@ export default function Room() {
             Waking up the server — this can take up to a minute on the first
             connection. Hang tight!
           </p>
-          <p className="waiting-room-id">Room: <strong>{roomId}</strong></p>
+          <p className="waiting-room-id">
+            Room: <strong>{roomId}</strong>
+          </p>
           <div className="connecting-dots" aria-hidden="true">
-            <span /><span /><span />
+            <span />
+            <span />
+            <span />
           </div>
         </div>
       </div>
     );
   }
 
-  if (status === 'waiting') {
+  if (status === "waiting") {
     return (
       <div className="join-gate">
         <div className="home-card waiting-card">
           <div className="waiting-spinner" aria-hidden="true" />
           <h2>Waiting for host</h2>
           <p>The host will let you in shortly. Hang tight!</p>
-          <p className="waiting-room-id">Room: <strong>{roomId}</strong></p>
+          <p className="waiting-room-id">
+            Room: <strong>{roomId}</strong>
+          </p>
         </div>
       </div>
     );
   }
 
-  if (status === 'rejected') {
+  if (status === "rejected") {
     return (
       <div className="join-gate">
         <div className="home-card">
@@ -585,7 +668,7 @@ export default function Room() {
     );
   }
 
-  if (status === 'kicked') {
+  if (status === "kicked") {
     return (
       <div className="join-gate">
         <div className="home-card">
@@ -604,12 +687,12 @@ export default function Room() {
           onDone={({ mic, camera }) => {
             setShowPermModal(false);
             const perms = {
-              mic: mic === 'granted',
-              camera: camera === 'granted',
-              answered: true
+              mic: mic === "granted",
+              camera: camera === "granted",
+              answered: true,
             };
             setMediaPerms(perms);
-            localStorage.setItem('movdate_media_perms', JSON.stringify(perms));
+            localStorage.setItem("movdate_media_perms", JSON.stringify(perms));
           }}
         />
       )}
@@ -621,23 +704,33 @@ export default function Room() {
           {isHost && (
             <button
               type="button"
-              className={`protect-toggle-btn${isProtected ? ' protect-toggle-btn--on' : ''}`}
+              className={`protect-toggle-btn${isProtected ? " protect-toggle-btn--on" : ""}`}
               onClick={() => setProtected(!isProtected)}
-              title={isProtected ? 'Room is protected — click to open it' : 'Room is open — click to protect it'}
+              title={
+                isProtected
+                  ? "Room is protected — click to open it"
+                  : "Room is open — click to protect it"
+              }
             >
-              {isProtected ? '🔒 Protected' : '🔓 Open room'}
+              {isProtected ? "🔒 Protected" : "🔓 Open room"}
             </button>
           )}
           {!isHost && isProtected && (
-            <span className="protect-badge" title="Only the host can admit participants">🔒 Protected</span>
+            <span
+              className="protect-badge"
+              title="Only the host can admit participants"
+            >
+              🔒 Protected
+            </span>
           )}
           <span className="participant-count">
-            {participants.length} {participants.length === 1 ? 'person' : 'people'} watching
+            {participants.length}{" "}
+            {participants.length === 1 ? "person" : "people"} watching
           </span>
           <button
             type="button"
             className="leave-room-btn"
-            onClick={() => navigate('/')}
+            onClick={() => navigate("/")}
             title="Leave room and return to home"
           >
             Leave
@@ -654,8 +747,8 @@ export default function Room() {
       <div className="room-body">
         <section className="room-main">
           <div
-            className={`video-stage-wrap${isFullscreen ? ' video-stage-wrap--fullscreen' : ''}${
-              isFullscreen && controlsHidden ? ' controls-hidden' : ''
+            className={`video-stage-wrap${isFullscreen ? " video-stage-wrap--fullscreen" : ""}${
+              isFullscreen && controlsHidden ? " controls-hidden" : ""
             }`}
             ref={stageWrapRef}
             onMouseEnter={() => setIsHoveringStage(true)}
@@ -676,7 +769,10 @@ export default function Room() {
             {isHost && waitingKnocks.length > 0 && (
               <div className="pause-request-stack">
                 {waitingKnocks.map((knock) => (
-                  <div key={knock.socketId} className="pause-request-toast knock-toast">
+                  <div
+                    key={knock.socketId}
+                    className="pause-request-toast knock-toast"
+                  >
                     <span>
                       <strong>{knock.name}</strong> wants to join
                     </span>
@@ -738,14 +834,17 @@ export default function Room() {
             {/* Participant: local-file source prompt / switch pill */}
             {!isHost && isLocalFileSentinel && (
               <LocalFilePrompt
-                fileName={video?.url?.replace('local:', '') || 'video file'}
+                fileName={video?.url?.replace("local:", "") || "video file"}
                 onPickFile={handleParticipantFilePick}
                 onUseStream={handleUseStream}
                 streamReady={streamReady}
                 streamError={streamError}
                 streamProgress={streamProgress}
-                wantStream={localFileMode === 'stream'}
-                dismissed={localPromptDismissed && !(localFileMode === 'stream' && !streamReady)}
+                wantStream={localFileMode === "stream"}
+                dismissed={
+                  localPromptDismissed &&
+                  !(localFileMode === "stream" && !streamReady)
+                }
               />
             )}
 
@@ -753,16 +852,16 @@ export default function Room() {
               type="button"
               className="fullscreen-toggle"
               onClick={toggleFullscreen}
-              title={isFullscreen ? 'Exit full screen' : 'Full screen'}
-              aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              title={isFullscreen ? "Exit full screen" : "Full screen"}
+              aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
             >
-              {isFullscreen ? '⤡' : '⤢'}
+              {isFullscreen ? "⤡" : "⤢"}
             </button>
 
             {autoplayBlocked && (
               <button
                 type="button"
-                className={`media-warning media-warning--action${isFullscreen ? ' media-warning--overlay' : ''}`}
+                className={`media-warning media-warning--action${isFullscreen ? " media-warning--overlay" : ""}`}
                 onClick={() => {
                   setAutoplayBlocked(false);
                   // Triggering a play action locally with user gesture
@@ -776,7 +875,7 @@ export default function Room() {
             {mutedAutoplay && (
               <button
                 type="button"
-                className={`media-warning media-warning--action${isFullscreen ? ' media-warning--overlay' : ''}`}
+                className={`media-warning media-warning--action${isFullscreen ? " media-warning--overlay" : ""}`}
                 onClick={() => {
                   playerRef.current?.unmute();
                   setMutedAutoplay(false);
@@ -787,9 +886,14 @@ export default function Room() {
             )}
 
             {playbackError && (
-              <p className={`media-warning${isFullscreen ? ' media-warning--overlay' : ''}`}>
-                This browser can't play that file — it's likely an unsupported codec inside the
-                container. {isHost ? 'Try loading an .mp4 link instead.' : 'Ask the host to load an .mp4 link instead.'}
+              <p
+                className={`media-warning${isFullscreen ? " media-warning--overlay" : ""}`}
+              >
+                This browser can't play that file — it's likely an unsupported
+                codec inside the container.{" "}
+                {isHost
+                  ? "Try loading an .mp4 link instead."
+                  : "Ask the host to load an .mp4 link instead."}
               </p>
             )}
 
@@ -798,15 +902,18 @@ export default function Room() {
               <div className="host-stream-status">
                 {[...hostSendProgress.entries()].map(([peerId, pct]) => {
                   const peer = participants.find((p) => p.id === peerId);
-                  const peerName = peer?.name || 'Someone';
+                  const peerName = peer?.name || "Someone";
                   return (
                     <div key={peerId} className="host-stream-status-item">
                       <span className="host-stream-name">{peerName}</span>
                       <div className="host-stream-bar">
-                        <div className="host-stream-bar-fill" style={{ width: `${pct}%` }} />
+                        <div
+                          className="host-stream-bar-fill"
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                       <span className="host-stream-pct">
-                        {pct >= 100 ? '✓ Ready' : `${pct}%`}
+                        {pct >= 100 ? "✓ Ready" : `${pct}%`}
                       </span>
                     </div>
                   );
@@ -829,7 +936,7 @@ export default function Room() {
               />
             )}
 
-            {isFullscreen && (
+            {isFullscreen && !overlayHidden && (
               <CallOverlay
                 participants={participants}
                 you={you}
@@ -875,11 +982,19 @@ export default function Room() {
           />
 
           <div className="call-actions">
-            <button type="button" onClick={toggleMic} className={muted ? 'is-off' : ''}>
-              {muted ? 'Unmute' : 'Mute'}
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={muted ? "is-off" : ""}
+            >
+              {muted ? "Unmute" : "Mute"}
             </button>
-            <button type="button" onClick={toggleCamera} className={cameraOff ? 'is-off' : ''}>
-              {cameraOff ? 'Start camera' : 'Stop camera'}
+            <button
+              type="button"
+              onClick={toggleCamera}
+              className={cameraOff ? "is-off" : ""}
+            >
+              {cameraOff ? "Start camera" : "Stop camera"}
             </button>
             <button
               type="button"
@@ -906,17 +1021,20 @@ export default function Room() {
               />
             )}
             {/* Participant: switch local-file source — shown after a choice is made */}
-            {!isHost && isLocalFileSentinel && localPromptDismissed &&
-              (localFileMode === 'local-copy' || (localFileMode === 'stream' && streamReady)) && (
-              <button
-                type="button"
-                className="source-switch-pill"
-                onClick={handleSwitchMode}
-                title="Switch between your own local copy and streaming from the host"
-              >
-                🔄 Switch source
-              </button>
-            )}
+            {!isHost &&
+              isLocalFileSentinel &&
+              localPromptDismissed &&
+              (localFileMode === "local-copy" ||
+                (localFileMode === "stream" && streamReady)) && (
+                <button
+                  type="button"
+                  className="source-switch-pill"
+                  onClick={handleSwitchMode}
+                  title="Switch between your own local copy and streaming from the host"
+                >
+                  🔄 Switch source
+                </button>
+              )}
           </div>
         </section>
 
@@ -924,21 +1042,21 @@ export default function Room() {
           <div className="sidebar-tabs">
             <button
               type="button"
-              className={activeTab === 'chat' ? 'active' : ''}
-              onClick={() => setActiveTab('chat')}
+              className={activeTab === "chat" ? "active" : ""}
+              onClick={() => setActiveTab("chat")}
             >
               Chat
             </button>
             <button
               type="button"
-              className={activeTab === 'people' ? 'active' : ''}
-              onClick={() => setActiveTab('people')}
+              className={activeTab === "people" ? "active" : ""}
+              onClick={() => setActiveTab("people")}
             >
               People ({participants.length})
             </button>
           </div>
 
-          {activeTab === 'chat' ? (
+          {activeTab === "chat" ? (
             <ChatPanel messages={messages} onSend={sendChat} you={you} />
           ) : (
             <ul className="people-list">
@@ -946,8 +1064,12 @@ export default function Room() {
                 <li key={p.id} className="people-list-item">
                   <div className="people-list-info">
                     <span className="people-list-name">{p.name}</span>
-                    {p.id === you?.id && <span className="people-list-you"> (you)</span>}
-                    {p.id === hostId && <span className="badge badge--host">Host</span>}
+                    {p.id === you?.id && (
+                      <span className="people-list-you"> (you)</span>
+                    )}
+                    {p.id === hostId && (
+                      <span className="badge badge--host">Host</span>
+                    )}
                   </div>
                   {isHost && p.id !== you?.id && (
                     <div className="people-list-actions">
