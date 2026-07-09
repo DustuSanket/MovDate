@@ -43,19 +43,32 @@ export default function PlaybackControls({
   const [currentQuality, setCurrentQuality] = useState(null);
   const [captionTracks, setCaptionTracks] = useState([]);
   const [currentCaptionTrack, setCurrentCaptionTrack] = useState(null);
+  const [audioTracks, setAudioTracks] = useState([]);
+  const [currentAudioTrack, setCurrentAudioTrack] = useState(null);
+  const [subtitleAvailable, setSubtitleAvailable] = useState(false);
+  const [subtitleShowing, setSubtitleShowing] = useState(false);
   const settingsMenuRef = useRef(null);
 
   const isYouTube = source?.type === 'youtube';
+  const isFile = source?.type === 'file';
 
   // Refresh the available qualities/captions each time the menu opens —
   // YouTube only knows these once the video has actually started buffering.
   useEffect(() => {
-    if (!settingsOpen || !isYouTube || !playerRef?.current) return;
-    setQualities(playerRef.current.getAvailableQualities?.() ?? []);
-    setCurrentQuality(playerRef.current.getCurrentQuality?.() ?? null);
-    setCaptionTracks(playerRef.current.getCaptionTracks?.() ?? []);
-    setCurrentCaptionTrack(playerRef.current.getCurrentCaptionTrack?.() ?? null);
-  }, [settingsOpen, isYouTube, playerRef]);
+    if (!settingsOpen || !playerRef?.current) return;
+    if (isYouTube) {
+      setQualities(playerRef.current.getAvailableQualities?.() ?? []);
+      setCurrentQuality(playerRef.current.getCurrentQuality?.() ?? null);
+      setCaptionTracks(playerRef.current.getCaptionTracks?.() ?? []);
+      setCurrentCaptionTrack(playerRef.current.getCurrentCaptionTrack?.() ?? null);
+    } else if (isFile) {
+      const tracks = playerRef.current.getAudioTracks?.() ?? [];
+      setAudioTracks(tracks);
+      setCurrentAudioTrack(tracks.find((t) => t.enabled)?.id ?? null);
+      setSubtitleAvailable(playerRef.current.getSubtitleAvailable?.() ?? false);
+      setSubtitleShowing(playerRef.current.isSubtitleShowing?.() ?? false);
+    }
+  }, [settingsOpen, isYouTube, isFile, playerRef]);
 
   // Close the menu on outside click.
   useEffect(() => {
@@ -77,6 +90,16 @@ export default function PlaybackControls({
   function handleSelectCaptionTrack(track) {
     playerRef?.current?.setCaptionTrack?.(track);
     setCurrentCaptionTrack(track && track.languageCode ? track : null);
+  }
+
+  function handleSelectAudioTrack(trackId) {
+    playerRef?.current?.setAudioTrack?.(trackId);
+    setCurrentAudioTrack(trackId);
+  }
+
+  function handleToggleSubtitle(show) {
+    playerRef?.current?.setSubtitleShowing?.(show);
+    setSubtitleShowing(show);
   }
 
   function handleScrub(event) {
@@ -189,7 +212,7 @@ export default function PlaybackControls({
           />
         </div>
 
-        {isHost && isYouTube && (
+        {((isHost && isYouTube) || (isFile && (audioTracks.length > 0 || subtitleAvailable))) && (
           <div className="playback-settings" ref={settingsMenuRef}>
             <button
               type="button"
@@ -197,12 +220,12 @@ export default function PlaybackControls({
               onClick={() => setSettingsOpen((v) => !v)}
               aria-label="Video settings"
               aria-expanded={settingsOpen}
-              title="Quality & captions"
+              title={isYouTube ? 'Quality & captions' : 'Audio track & subtitles'}
             >
               ⚙
             </button>
 
-            {settingsOpen && (
+            {settingsOpen && isYouTube && (
               <div className="settings-menu">
                 <div className="settings-menu-section">
                   <div className="settings-menu-title">Quality</div>
@@ -253,6 +276,46 @@ export default function PlaybackControls({
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {settingsOpen && isFile && (
+              <div className="settings-menu">
+                {audioTracks.length > 0 && (
+                  <div className="settings-menu-section">
+                    <div className="settings-menu-title">Audio track</div>
+                    {audioTracks.map((track) => (
+                      <button
+                        key={track.id}
+                        type="button"
+                        className={`settings-menu-item${currentAudioTrack === track.id ? ' is-active' : ''}`}
+                        onClick={() => handleSelectAudioTrack(track.id)}
+                      >
+                        {track.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {subtitleAvailable && (
+                  <div className="settings-menu-section">
+                    <div className="settings-menu-title">Subtitles</div>
+                    <button
+                      type="button"
+                      className={`settings-menu-item${!subtitleShowing ? ' is-active' : ''}`}
+                      onClick={() => handleToggleSubtitle(false)}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-menu-item${subtitleShowing ? ' is-active' : ''}`}
+                      onClick={() => handleToggleSubtitle(true)}
+                    >
+                      On
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

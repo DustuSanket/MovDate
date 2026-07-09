@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { readSubtitleFileAsVtt } from '../lib/subtitles.js';
 
 const CHUNK_SIZE = 64 * 1024; // 64 KB - Lowest, safest chunk size for strict WebRTC limits
 
@@ -232,11 +233,16 @@ function resolveContainerInfo(file) {
   return containerInfoCache.get(file);
 }
 
-export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
+export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitleFile }) {
   const [streamUrl,      setStreamUrl]      = useState(null);
   const [streamReady,    setStreamReady]    = useState(false);
   const [streamError,    setStreamError]    = useState(null);
   const [streamProgress, setStreamProgress] = useState(0); // 0–100
+
+  // PARTICIPANT: subtitle track received from the host (if any)
+  const [subtitleUrl,  setSubtitleUrl]  = useState(null);
+  const [subtitleName, setSubtitleName] = useState(null);
+  const subtitleUrlRef = useRef(null); // for revoking the previous blob URL
 
   // HOST: per-peer send progress — Map<peerId, number (0–100)>
   const [hostSendProgress, setHostSendProgress] = useState(new Map());
@@ -244,6 +250,8 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
   // HOST: always read the latest file inside callbacks/listeners
   const fileRef = useRef(file);
   useEffect(() => { fileRef.current = file; }, [file]);
+  const subtitleFileRef = useRef(subtitleFile);
+  useEffect(() => { subtitleFileRef.current = subtitleFile; }, [subtitleFile]);
 
   // HOST: tracking
   const hostAttachedPeersRef = useRef(new Set());
@@ -256,14 +264,86 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
   const currentReqIdRef = useRef(null);
   const participantAttachedRef = useRef(false);
 
+  // HOST: remembers the previous file so a change can be detected and
+  // acted on IMMEDIATELY, in the same effect pass that iterates peers —
+  // not in a separate effect. Two separate effects (one clearing
+  // hostAttachedPeersRef on file change, another using it to decide who to
+  // (re)send meta to) run in DECLARATION order on every commit, regardless
+  // of which one's dependency actually changed. That ordering meant the
+  // "who already has meta" check ran against the STALE (not-yet-cleared)
+  // set on the very render that swapped `file`, so already-connected peers
+  // were silently skipped and never received the new file's meta — the
+  // participant's <video> kept pointing at the old stream forever (hence
+  // the frozen playback bar/black screen that only a full refresh fixed).
+  // Doing the invalidation inline guarantees the check always sees the
+  // up-to-date state for the file that's actually loaded right now.
+  const prevFileRef = useRef(file);
+
+  // ── HOST: push subtitle updates to everyone already connected ──
+  // Subtitles can be added/changed/removed independently of the video file,
+  // so this doesn't wait for the meta-resend path (which only fires on a
+  // new peer or a video file change).
+  useEffect(() => {
+    if (!isHost) return;
+
+    async function broadcast() {
+      let payload;
+      if (!subtitleFile) {
+        payload = JSON.stringify({ type: 'subtitle-file', name: null, vtt: null });
+      } else {
+        try {
+          const vtt = await readSubtitleFileAsVtt(subtitleFile);
+          payload = JSON.stringify({ type: 'subtitle-file', name: subtitleFile.name, vtt });
+        } catch {
+          return; // unreadable subtitle file — skip, don't disturb video playback
+        }
+      }
+      dataChannels.forEach((dc) => {
+        if (dc.readyState === 'open') dc.send(payload);
+      });
+    }
+
+    broadcast();
+  }, [isHost, subtitleFile, dataChannels]);
+
   // ── HOST: stream the file chunk-by-chunk on demand ──
   useEffect(() => {
     if (!isHost || !file) return;
+
+    if (prevFileRef.current !== file) {
+      // New file selected — every peer needs fresh meta (new name/size/
+      // codec/mimeType) and any in-flight range reads for the OLD file
+      // must stop, or a participant could end up receiving a mix of two
+      // different files' bytes under the same request id.
+      hostAttachedPeersRef.current.clear();
+      activeRangesRef.current.clear();
+      prevFileRef.current = file;
+    }
 
     dataChannels.forEach((dc, peerId) => {
       if (hostAttachedPeersRef.current.has(peerId)) return;
       hostAttachedPeersRef.current.add(peerId);
       
+      // Reads (and converts, if needed) whatever subtitle file is currently
+      // set and sends it as one message — subtitle files are tiny (KBs)
+      // compared to the video, so no chunking is needed here.
+      async function sendSubtitle() {
+        if (dc.readyState !== 'open') return;
+        const current = subtitleFileRef.current;
+        if (!current) {
+          dc.send(JSON.stringify({ type: 'subtitle-file', name: null, vtt: null }));
+          return;
+        }
+        try {
+          const vtt = await readSubtitleFileAsVtt(current);
+          if (dc.readyState !== 'open') return;
+          dc.send(JSON.stringify({ type: 'subtitle-file', name: current.name, vtt }));
+        } catch {
+          // Bad/unreadable subtitle file — just skip it silently rather
+          // than block video playback over a caption file.
+        }
+      }
+
       // Tell participant that file metadata is ready right away so they can register the SW stream
       async function sendMeta() {
         const { mimeType, realContainer, unsupportedContainer, videoCodecName, videoCodecString } =
@@ -279,6 +359,7 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
           videoCodecName,
           videoCodecString
         }));
+        sendSubtitle();
       }
 
       if (dc.readyState === 'open') {
@@ -311,6 +392,7 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
             videoCodecName,
             videoCodecString
           }));
+          sendSubtitle();
         } else if (msg.type === 'request-range') {
           const { start, end, reqId } = msg;
           let offset = start;
@@ -368,13 +450,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
       };
     });
   }, [isHost, dataChannels, file]);
-
-  // Reset attached peers when file changes so we send meta again
-  useEffect(() => {
-    hostAttachedPeersRef.current.clear();
-    activeRangesRef.current.clear();
-  }, [file]);
-
 
   // ── PARTICIPANT: unconditionally listen to the host's stream ──
   useEffect(() => {
@@ -506,6 +581,11 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
         try { msg = JSON.parse(event.data); } catch { return; }
 
         if (msg.type === 'file-stream-meta') {
+          // A fresh meta message means the host switched files (or a
+          // reconnect happened) — clear any error left over from
+          // whatever was previously loaded so it doesn't linger onscreen.
+          setStreamError(null);
+
           if (msg.unsupportedContainer) {
             setStreamError(
               `The host's file is an ${(msg.realContainer || 'unsupported').toUpperCase()} container, which browsers can't play directly. Ask the host to convert it to .mp4 first.`
@@ -554,6 +634,21 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
             pendingRequests.current.delete(reqId);
           }
           currentReqIdRef.current = null;
+        } else if (msg.type === 'subtitle-file') {
+          if (subtitleUrlRef.current) {
+            URL.revokeObjectURL(subtitleUrlRef.current);
+            subtitleUrlRef.current = null;
+          }
+          if (msg.vtt) {
+            const blob = new Blob([msg.vtt], { type: 'text/vtt' });
+            const url = URL.createObjectURL(blob);
+            subtitleUrlRef.current = url;
+            setSubtitleUrl(url);
+            setSubtitleName(msg.name || 'Subtitles');
+          } else {
+            setSubtitleUrl(null);
+            setSubtitleName(null);
+          }
         }
       } else if (event.data instanceof ArrayBuffer) {
         const reqId = currentReqIdRef.current;
@@ -628,5 +723,20 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
     };
   }, [isHost, hostId, dataChannels]);
 
-  return { streamUrl, streamReady, streamError, streamProgress, hostSendProgress };
+  // Revoke any subtitle blob URL when the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (subtitleUrlRef.current) URL.revokeObjectURL(subtitleUrlRef.current);
+    };
+  }, []);
+
+  return {
+    streamUrl,
+    streamReady,
+    streamError,
+    streamProgress,
+    hostSendProgress,
+    subtitleUrl,
+    subtitleName,
+  };
 }

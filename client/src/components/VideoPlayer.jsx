@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { loadYouTubeAPI } from '../lib/youtubeLoader.js';
 
 const VideoPlayer = forwardRef(function VideoPlayer(
-  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause },
+  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause, subtitleUrl, subtitleLabel },
   ref
 ) {
   const containerRef = useRef(null);
@@ -337,6 +337,42 @@ const VideoPlayer = forwardRef(function VideoPlayer(
         /* ignore */
       }
     },
+    // ── Local file only: embedded audio tracks (e.g. dubs) ──────────
+    // Uses the non-standard but Chromium/Edge-supported HTMLMediaElement
+    // .audioTracks API. Firefox/Safari don't expose it, so callers should
+    // treat an empty array as "not available here" rather than an error.
+    getAudioTracks() {
+      const el = fileVideoRef.current;
+      const tracks = el?.audioTracks;
+      if (!tracks || tracks.length <= 1) return [];
+      return Array.from(tracks).map((t, i) => ({
+        id: t.id || String(i),
+        label: t.label || t.language || `Track ${i + 1}`,
+        language: t.language || '',
+        enabled: t.enabled,
+      }));
+    },
+    setAudioTrack(trackId) {
+      const el = fileVideoRef.current;
+      const tracks = el?.audioTracks;
+      if (!tracks) return;
+      for (let i = 0; i < tracks.length; i += 1) {
+        const t = tracks[i];
+        t.enabled = (t.id || String(i)) === trackId;
+      }
+    },
+    // ── Local file only: sidecar subtitle track (host-supplied .srt/.vtt) ──
+    getSubtitleAvailable() {
+      return source?.type === 'file' && !!subtitleUrl;
+    },
+    isSubtitleShowing() {
+      const track = fileVideoRef.current?.textTracks?.[0];
+      return track?.mode === 'showing';
+    },
+    setSubtitleShowing(show) {
+      const track = fileVideoRef.current?.textTracks?.[0];
+      if (track) track.mode = show ? 'showing' : 'hidden';
+    },
   }));
 
   // ── YouTube setup ──────────────────────────────────────────────────
@@ -573,7 +609,17 @@ const VideoPlayer = forwardRef(function VideoPlayer(
               onPlaybackError?.();
             }}
             style={{ pointerEvents: 'none' }}
-          />
+          >
+            {subtitleUrl && (
+              <track
+                key={subtitleUrl}
+                kind="subtitles"
+                src={subtitleUrl}
+                label={subtitleLabel || 'Subtitles'}
+                default={false}
+              />
+            )}
+          </video>
           {renderSource.isLocal && (
             <div className="local-file-badge" title="Playing from your local device — only you can see this">
               📁 Local file
