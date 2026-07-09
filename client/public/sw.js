@@ -34,17 +34,42 @@ self.addEventListener('fetch', event => {
   }
 });
 
+// The maximum number of bytes we'll ever promise in a single response.
+// Real static file servers never hand back "the rest of a multi-GB file"
+// just because the client sent an open-ended Range header (`bytes=X-`);
+// they cap it and let the client issue further range requests as needed.
+// We have to do the same, since we're trickling the data over a WebRTC
+// data channel — promising gigabytes in one Content-Length causes the
+// <video> element to stall waiting on a response that will never arrive
+// in time, which Chrome then reports as a generic "can't play this file"
+// error (looks like a codec error, but it's really just a starved fetch).
+const MAX_RANGE_RESPONSE_BYTES = 8 * 1024 * 1024; // 8 MB per response
+
 async function handleStreamRequest(request, streamInfo) {
   const rangeHeader = request.headers.get('Range');
   const totalSize = streamInfo.meta.size;
   
   let start = 0;
   let end = totalSize - 1;
+  let openEnded = true;
 
   if (rangeHeader) {
     const parts = rangeHeader.replace(/bytes=/, '').split('-');
     start = parseInt(parts[0], 10);
-    end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+    if (parts[1]) {
+      end = parseInt(parts[1], 10);
+      openEnded = false;
+    } else {
+      end = totalSize - 1;
+    }
+  }
+
+  // Clamp: if the request was open-ended (or simply huge), only serve up
+  // to MAX_RANGE_RESPONSE_BYTES from `start`. The browser will follow up
+  // with another range request for the next chunk once it needs more —
+  // exactly like it would against a normal HTTP server.
+  if (openEnded || (end - start + 1) > MAX_RANGE_RESPONSE_BYTES) {
+    end = Math.min(start + MAX_RANGE_RESPONSE_BYTES - 1, totalSize - 1);
   }
   
   if (start >= totalSize || end >= totalSize || start > end) {
