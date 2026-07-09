@@ -35,6 +35,9 @@ export function useRoomSocket(roomId, name, options = {}) {
 
   const [pauseRequests, setPauseRequests] = useState([]);
   const [pauseRequestDenied, setPauseRequestDenied] = useState(false);
+  // Host-only: participants currently stalled/buffering while streaming the
+  // host's local file, keyed by socket id -> name.
+  const [bufferingParticipants, setBufferingParticipants] = useState({});
 
   const videoEventBusRef = useRef(typeof EventTarget !== 'undefined' ? new EventTarget() : null);
   const serverOffsetRef = useRef(0);
@@ -159,6 +162,12 @@ export function useRoomSocket(roomId, name, options = {}) {
     function handleParticipantLeft({ id, newHostId }) {
       setParticipants((prev) => prev.filter((p) => p.id !== id));
       if (newHostId !== undefined) setHostId(newHostId);
+      setBufferingParticipants((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
 
     function handleHostChanged({ newHostId }) {
@@ -244,6 +253,19 @@ export function useRoomSocket(roomId, name, options = {}) {
       if (type === 'video' && optionsRef.current.onForceCameraOff) optionsRef.current.onForceCameraOff();
     }
 
+    function handleParticipantBuffering({ participantId, participantName, isBuffering }) {
+      setBufferingParticipants((prev) => {
+        if (isBuffering) {
+          if (prev[participantId] === participantName) return prev;
+          return { ...prev, [participantId]: participantName };
+        }
+        if (!(participantId in prev)) return prev;
+        const next = { ...prev };
+        delete next[participantId];
+        return next;
+      });
+    }
+
     socket.on('connect', handleConnect);
     socket.on('room:admitted', handleAdmitted);
     socket.on('room:rejected', handleRejected);
@@ -264,6 +286,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     socket.on('video:pause-request-denied', handlePauseRequestDenied);
     socket.on('video:pause-request-approved', () => {});
     socket.on('room:force-media', handleForceMedia);
+    socket.on('video:participant-buffering', handleParticipantBuffering);
 
     if (socket.connected) handleConnect();
 
@@ -290,6 +313,7 @@ export function useRoomSocket(roomId, name, options = {}) {
       socket.off('video:pause-request-denied', handlePauseRequestDenied);
       socket.off('video:pause-request-approved');
       socket.off('room:force-media', handleForceMedia);
+      socket.off('video:participant-buffering', handleParticipantBuffering);
       socket.disconnect();
     };
   }, [roomId, name, options.enabled]);
@@ -304,6 +328,10 @@ export function useRoomSocket(roomId, name, options = {}) {
   const sendChat = useCallback((text) => socket.emit('chat:send', { roomId, text }), [roomId]);
   const updateMediaState = useCallback((state) => socket.emit('media:state', { roomId, ...state }), [roomId]);
   const sendHeartbeat = useCallback((time) => socket.emit('video:heartbeat', { roomId, time }), [roomId]);
+  const sendBufferingState = useCallback(
+    (isBuffering) => socket.emit('video:buffering', { roomId, isBuffering }),
+    [roomId]
+  );
   const requestPause = useCallback(() => socket.emit('video:pause-request', { roomId }), [roomId]);
   const respondToPauseRequest = useCallback(
     ({ approved, toId, time }) => socket.emit('video:pause-request-response', { roomId, approved, toId, time }),
@@ -364,6 +392,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     videoEventBus: videoEventBusRef.current,
     pauseRequests,
     pauseRequestDenied,
+    bufferingParticipants,
     reconnectToken,
     loadVideo,
     play,
@@ -372,6 +401,7 @@ export function useRoomSocket(roomId, name, options = {}) {
     sendChat,
     updateMediaState,
     sendHeartbeat,
+    sendBufferingState,
     requestPause,
     respondToPauseRequest,
     dismissPauseRequest,

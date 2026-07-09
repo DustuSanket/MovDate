@@ -500,5 +500,5 @@ export function useMeshCall({ you, participants, localStream, screenStream, reco
     };
   }, []);
 
-  return { remoteStreams, replaceLocalTrack, dataChannels, destroyAllPeers };
+  return { remoteStreams, replaceLocalTrack, dataChannels, destroyAllPeers, peerConnectionsRef: peerConnections };
 }

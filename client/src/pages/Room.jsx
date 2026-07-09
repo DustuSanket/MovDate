@@ -14,6 +14,8 @@ import SettingsModal from "../components/SettingsModal.jsx";
 import PermissionModal from "../components/PermissionModal.jsx";
 import LocalFilePrompt from "../components/LocalFilePrompt.jsx";
 import { useLocalFileStream } from "../hooks/useLocalFileStream.js";
+import { useNetworkStats } from "../hooks/useNetworkStats.js";
+import NetworkStatsBar from "../components/NetworkStatsBar.jsx";
 import { App as CapApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
@@ -93,6 +95,7 @@ export default function Room() {
     videoEventBus,
     pauseRequests,
     pauseRequestDenied,
+    bufferingParticipants,
     reconnectToken,
     loadVideo,
     play,
@@ -101,6 +104,7 @@ export default function Room() {
     sendChat,
     updateMediaState,
     sendHeartbeat,
+    sendBufferingState,
     requestPause,
     respondToPauseRequest,
     dismissPauseRequest,
@@ -141,12 +145,14 @@ export default function Room() {
     switchSpeaker,
     requestPermission,
   } = useLocalMedia({ permissions: mediaPerms });
-  const { remoteStreams, replaceLocalTrack, dataChannels } = useMeshCall({
+  const { remoteStreams, replaceLocalTrack, dataChannels, peerConnectionsRef } = useMeshCall({
     you,
     participants,
     localStream,
     reconnectToken,
   });
+
+  const networkStats = useNetworkStats(peerConnectionsRef, status === "joined");
 
   const {
     streamUrl,
@@ -464,6 +470,48 @@ export default function Room() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Participant streaming the host's local file: let the host know when our
+  // own playback stalls (our internet, not theirs) so they can wait for us
+  // instead of everyone just watching us fall out of sync.
+  function handlePlayerBufferingChange(isBuffering) {
+    if (isHost) return;
+    if (!(isLocalFileSentinel && localFileMode === "stream")) return;
+    sendBufferingState(isBuffering);
+  }
+
+  // If we switch away from stream mode (or lose the video) while the host
+  // still thinks we're buffering, tell them we're no longer stalled.
+  useEffect(() => {
+    if (isHost) return undefined;
+    if (isLocalFileSentinel && localFileMode === "stream") return undefined;
+    sendBufferingState(false);
+    return undefined;
+  }, [isHost, isLocalFileSentinel, localFileMode, sendBufferingState]);
+
+  // Host-side: while any streaming participant is buffering, auto-pause so
+  // the room waits for them, then auto-resume once everyone has caught up.
+  const autoPausedForBufferingRef = useRef(false);
+  const bufferingNames = Object.values(bufferingParticipants);
+  useEffect(() => {
+    if (!isHost) return;
+    const anyoneBuffering = bufferingNames.length > 0;
+
+    if (anyoneBuffering && video?.isPlaying && !autoPausedForBufferingRef.current) {
+      const time = playerRef.current?.getCurrentTime?.() ?? displayTime;
+      autoPausedForBufferingRef.current = true;
+      pause(time);
+      playerRef.current?.pauseAt(time);
+    } else if (!anyoneBuffering && autoPausedForBufferingRef.current) {
+      autoPausedForBufferingRef.current = false;
+      const time = playerRef.current?.getCurrentTime?.() ?? displayTime;
+      play(time);
+      playerRef.current?.playAt(time);
+      setAutoplayBlocked(false);
+      setMutedAutoplay(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bufferingNames.join("|"), isHost]);
+
   function handleHostPlayPause({ kind, time }) {
     if (kind === "play") {
       play(time);
@@ -722,6 +770,13 @@ export default function Room() {
 
       <header className="room-header">
         <InviteBar roomId={roomId} />
+        <NetworkStatsBar
+          pingMs={networkStats.pingMs}
+          downloadKbps={networkStats.downloadKbps}
+          uploadKbps={networkStats.uploadKbps}
+          hasPeers={networkStats.hasPeers}
+          showUpload={isHost}
+        />
         <div className="room-header-right">
           {/* Protected room toggle — host only */}
           {isHost && (
@@ -784,6 +839,7 @@ export default function Room() {
               onAutoplaySuccess={() => setAutoplayBlocked(false)}
               onMutedAutoplay={() => setMutedAutoplay(true)}
               onPlaybackError={() => setPlaybackError(true)}
+              onBufferingChange={handlePlayerBufferingChange}
             />
 
             {/* Waiting-room knock toasts — host sees these (inside stage-wrap for fullscreen visibility) */}
@@ -899,6 +955,17 @@ export default function Room() {
                 playerRef={playerRef}
               />
             </div>
+
+            {/* Host: a participant streaming our local file is stalled on
+                their end — we auto-pause (see effect above) and show why. */}
+            {isHost && bufferingNames.length > 0 && (
+              <div
+                className={`media-warning media-warning--buffering${isFullscreen ? " media-warning--overlay" : ""}`}
+              >
+                <span className="waiting-spinner waiting-spinner--inline" aria-hidden="true" />
+                Waiting for {bufferingNames.join(", ")} to catch up…
+              </div>
+            )}
 
             {autoplayBlocked && (
               <button

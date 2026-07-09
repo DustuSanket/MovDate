@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { loadYouTubeAPI } from '../lib/youtubeLoader.js';
 
 const VideoPlayer = forwardRef(function VideoPlayer(
-  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause },
+  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause, onBufferingChange },
   ref
 ) {
   const containerRef = useRef(null);
@@ -12,6 +12,14 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   const pendingRef = useRef(null);
   const hasPlayedRef = useRef(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const onBufferingChangeRef = useRef(onBufferingChange);
+  useEffect(() => { onBufferingChangeRef.current = onBufferingChange; }, [onBufferingChange]);
+  function updateBuffering(val) {
+    setIsBuffering((prev) => {
+      if (prev !== val) onBufferingChangeRef.current?.(val);
+      return val;
+    });
+  }
 
   // ── Embed sync helpers ──────────────────────────────────────────────
   // Generic <iframe> embeds (tpead.net, etc.) don't expose a postMessage
@@ -71,6 +79,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
   useEffect(() => {
     setEmbedCountdown(null);
     setEmbedBanner(null);
+    updateBuffering(false);
     if (embedCountdownTimerRef.current) clearInterval(embedCountdownTimerRef.current);
     if (embedBannerTimerRef.current) clearTimeout(embedBannerTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -441,8 +450,8 @@ const VideoPlayer = forwardRef(function VideoPlayer(
               // reacting to them was the other half of the duplicate-event bug.
               const { PLAYING, PAUSED, BUFFERING } = YT.PlayerState;
               
-              if (event.data === BUFFERING) setIsBuffering(true);
-              if (event.data === PLAYING || event.data === PAUSED) setIsBuffering(false);
+              if (event.data === BUFFERING) updateBuffering(true);
+              if (event.data === PLAYING || event.data === PAUSED) updateBuffering(false);
 
               if (event.data !== PLAYING && event.data !== PAUSED) {
                 return;
@@ -533,9 +542,9 @@ const VideoPlayer = forwardRef(function VideoPlayer(
       }
     }
 
-    function handleWaiting() { setIsBuffering(true); }
-    function handlePlaying() { setIsBuffering(false); }
-    function handleCanPlay() { setIsBuffering(false); }
+    function handleWaiting() { updateBuffering(true); }
+    function handlePlaying() { updateBuffering(false); }
+    function handleCanPlay() { updateBuffering(false); }
 
     el.addEventListener('play', handlePlay);
     el.addEventListener('pause', handlePause);
