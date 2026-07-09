@@ -17,6 +17,15 @@ self.addEventListener('message', event => {
     });
     // Acknowledge registration so the client knows it's safe to load the URL
     event.ports[0].postMessage({ type: 'REGISTER_ACK' });
+  } else if (event.data && event.data.type === 'KEEPALIVE') {
+    // Just receiving any message resets Chrome's "kill this idle SW"
+    // timer, but we also reply so the client can tell the difference
+    // between "still alive" and "got silently restarted, activeStreams
+    // is now empty" — a restarted SW responds fine to messages, it's
+    // just lost all its registrations, which is the actual failure mode
+    // that shows up as a fake "codec error" after a long pause.
+    const stillRegistered = activeStreams.has(event.data.streamId);
+    event.ports?.[0]?.postMessage({ type: 'KEEPALIVE_ACK', stillRegistered });
   }
 });
 

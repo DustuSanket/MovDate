@@ -19,11 +19,20 @@ async function sniffContainer(file) {
 
   // Matroska / WebM: EBML magic 0x1A45DFA3
   if (bytesEqual(0, [0x1a, 0x45, 0xdf, 0xa3])) {
-    // Can't tell mkv from webm just from the EBML header cheaply; webm is
-    // the only one of the two browsers can actually demux, so report that
-    // — if the codecs inside aren't VP8/VP9/AV1+Opus/Vorbis, playback will
-    // still (correctly) fail, but at least on an honest container match.
-    return { mimeType: 'video/webm', realContainer: 'matroska' };
+    // Real .webm (VP8/VP9/AV1+Opus/Vorbis) is honestly labeled video/webm.
+    // Real .mkv, though, very often carries H.264/H.265+AC3/AAC — codecs
+    // Chromium CAN demux from a Matroska container, but only if it isn't
+    // told upfront that the container is WebM (WebM's codec registry is
+    // stricter and Chromium will refuse before ever looking at the actual
+    // stream). Labeling it video/mp4 instead isn't accurate, but it's what
+    // actually gets Chromium's byte-level container sniffer to look past
+    // the declared type and demux the real Matroska structure underneath —
+    // this exact trick is what made this app's .mkv playback work before.
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.webm')) {
+      return { mimeType: 'video/webm', realContainer: 'matroska' };
+    }
+    return { mimeType: 'video/mp4', realContainer: 'matroska' };
   }
 
   // ISO-BMFF (MP4/MOV/M4V/3GP/HEIC...): 'ftyp' box at offset 4
@@ -385,6 +394,112 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
     setStreamError(null);
     setStreamProgress(0);
 
+    // Registers (or re-registers) a stream with the Service Worker.
+    // Reusable so a keepalive check that discovers the SW silently lost
+    // its registration (idle-terminated by the browser, wiping its
+    // in-memory state) can re-register with the *same* streamId — the
+    // <video> element's src never has to change, so there's no visible
+    // glitch, just a request that succeeds instead of surfacing a fake
+    // "codec error" the next time playback tries to fetch.
+    function registerStreamOnSW(streamId, meta, { isReRegistration = false } = {}) {
+      const channel = new MessageChannel();
+      serviceWorkerPortRef.current = channel.port1;
+
+      let ackTimeoutId = null;
+      let registerAttempts = 0;
+
+      channel.port1.onmessage = (swEvent) => {
+        if (swEvent.data.type === 'REGISTER_ACK') {
+          if (ackTimeoutId) clearTimeout(ackTimeoutId);
+          if (!isReRegistration) {
+            setStreamUrl(`/stream-media/${streamId}`);
+            setStreamReady(true);
+            // Set progress to 100% since we can play immediately and don't need the progress bar anymore
+            setStreamProgress(100);
+          }
+        } else if (swEvent.data.type === 'request-range') {
+          const { start, end, reqId, replyPort } = swEvent.data;
+          pendingRequests.current.set(reqId, replyPort);
+
+          if (dc.readyState === 'open') {
+            dc.send(JSON.stringify({
+              type: 'request-range',
+              start,
+              end,
+              reqId
+            }));
+          }
+        } else if (swEvent.data.type === 'cancel-range') {
+          const { reqId } = swEvent.data;
+          pendingRequests.current.delete(reqId);
+          if (dc.readyState === 'open') {
+            dc.send(JSON.stringify({
+              type: 'cancel-range',
+              reqId
+            }));
+          }
+        }
+      };
+
+      // Registration can silently go nowhere if the Service Worker
+      // isn't controlling this page yet (a common race right after
+      // it's first installed/updated — the fix is normally just one
+      // reload, but we shouldn't leave the person staring at a frozen
+      // 0% with zero explanation). Wait for a controller, retry once,
+      // then time out with a real error instead of hanging forever.
+      async function attemptRegister() {
+        registerAttempts += 1;
+        let controller = navigator.serviceWorker.controller;
+        if (!controller) {
+          // Give an in-flight activation up to 3s to finish.
+          controller = await Promise.race([
+            new Promise((resolve) => {
+              navigator.serviceWorker.addEventListener(
+                'controllerchange',
+                () => resolve(navigator.serviceWorker.controller),
+                { once: true }
+              );
+            }),
+            new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+        }
+        if (!controller) {
+          if (registerAttempts === 1) {
+            // Try registering the SW ourselves in case it never got
+            // registered in this tab at all, then retry once.
+            try {
+              await navigator.serviceWorker.register('/sw.js');
+            } catch {
+              /* ignore — we'll surface the real error below if this doesn't help */
+            }
+            return attemptRegister();
+          }
+          if (!isReRegistration) {
+            setStreamError(
+              "Couldn't start streaming from the host (the connection needed for it never came up). Please refresh the page and try again, or use \"Load my own copy\" instead."
+            );
+          }
+          return;
+        }
+
+        controller.postMessage({
+          type: 'REGISTER_STREAM',
+          streamId,
+          meta,
+        }, [channel.port2]);
+
+        if (!isReRegistration) {
+          ackTimeoutId = setTimeout(() => {
+            setStreamError(
+              "Streaming from the host timed out. Please refresh the page and try again, or use \"Load my own copy\" instead."
+            );
+          }, 8000);
+        }
+      }
+
+      attemptRegister();
+    }
+
     function handleParticipantMessage(event) {
       if (typeof event.data === 'string') {
         let msg;
@@ -426,99 +541,9 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
 
           const streamId = Math.random().toString(36).substring(2);
           streamInfoRef.current = { id: streamId, meta: msg };
+          registerStreamOnSW(streamId, msg);
 
-          const channel = new MessageChannel();
-          serviceWorkerPortRef.current = channel.port1;
-
-          let ackTimeoutId = null;
-          let registerAttempts = 0;
-
-          channel.port1.onmessage = (swEvent) => {
-            if (swEvent.data.type === 'REGISTER_ACK') {
-              if (ackTimeoutId) clearTimeout(ackTimeoutId);
-              setStreamUrl(`/stream-media/${streamId}`);
-              setStreamReady(true);
-              // Set progress to 100% since we can play immediately and don't need the progress bar anymore
-              setStreamProgress(100); 
-            } else if (swEvent.data.type === 'request-range') {
-              const { start, end, reqId, replyPort } = swEvent.data;
-              pendingRequests.current.set(reqId, replyPort);
-              
-              if (dc.readyState === 'open') {
-                dc.send(JSON.stringify({
-                  type: 'request-range',
-                  start,
-                  end,
-                  reqId
-                }));
-              }
-            } else if (swEvent.data.type === 'cancel-range') {
-              const { reqId } = swEvent.data;
-              pendingRequests.current.delete(reqId);
-              if (dc.readyState === 'open') {
-                dc.send(JSON.stringify({
-                  type: 'cancel-range',
-                  reqId
-                }));
-              }
-            }
-          };
-
-          // Registration can silently go nowhere if the Service Worker
-          // isn't controlling this page yet (a common race right after
-          // it's first installed/updated — the fix is normally just one
-          // reload, but we shouldn't leave the person staring at a frozen
-          // 0% with zero explanation). Wait for a controller, retry once,
-          // then time out with a real error instead of hanging forever.
-          async function registerStream() {
-            registerAttempts += 1;
-            let controller = navigator.serviceWorker.controller;
-            if (!controller) {
-              // Give an in-flight activation up to 3s to finish.
-              controller = await Promise.race([
-                new Promise((resolve) => {
-                  navigator.serviceWorker.addEventListener(
-                    'controllerchange',
-                    () => resolve(navigator.serviceWorker.controller),
-                    { once: true }
-                  );
-                }),
-                new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
-              ]);
-            }
-            if (!controller) {
-              if (registerAttempts === 1) {
-                // Try registering the SW ourselves in case it never got
-                // registered in this tab at all, then retry once.
-                try {
-                  await navigator.serviceWorker.register('/sw.js');
-                } catch {
-                  /* ignore — we'll surface the real error below if this doesn't help */
-                }
-                return registerStream();
-              }
-              setStreamError(
-                "Couldn't start streaming from the host (the connection needed for it never came up). Please refresh the page and try again, or use \"Load my own copy\" instead."
-              );
-              return;
-            }
-
-            controller.postMessage({
-              type: 'REGISTER_STREAM',
-              streamId,
-              meta: msg,
-            }, [channel.port2]);
-
-            ackTimeoutId = setTimeout(() => {
-              setStreamError(
-                "Streaming from the host timed out. Please refresh the page and try again, or use \"Load my own copy\" instead."
-              );
-            }, 8000);
-          }
-
-          registerStream();
-
-
+        
         } else if (msg.type === 'chunk-header') {
           currentReqIdRef.current = msg.reqId;
         } else if (msg.type === 'chunk-end') {
@@ -558,9 +583,48 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
       if (originalOnClose) originalOnClose(e);
     };
 
+    // ── Keep the Service Worker's registration alive during long pauses ──
+    // Chrome (and other browsers) terminate an idle Service Worker after
+    // ~30s of no fetch/message activity to free memory. A paused video
+    // generates neither, so after a few minutes of pause the SW gets
+    // killed and its in-memory stream registry (which can't be persisted —
+    // it holds a live MessagePort) is wiped. The next fetch on resume then
+    // 404s, which the <video> element reports as a generic decode/codec
+    // error. Pinging periodically mostly prevents the SW from ever going
+    // idle long enough to die; if it still gets killed anyway (e.g. the
+    // browser reclaims it for other reasons), the ack tells us our
+    // registration is gone and we silently re-register with the *same*
+    // streamId — no src change, no visible glitch, no need to refresh.
+    const keepaliveInterval = setInterval(() => {
+      if (!streamInfoRef.current.id || !navigator.serviceWorker?.controller) return;
+      const { id: streamId, meta } = streamInfoRef.current;
+
+      try {
+        const pingChannel = new MessageChannel();
+        const ackPromise = new Promise((resolve) => {
+          pingChannel.port1.onmessage = (e) => resolve(e.data);
+        });
+        navigator.serviceWorker.controller.postMessage(
+          { type: 'KEEPALIVE', streamId },
+          [pingChannel.port2]
+        );
+        Promise.race([
+          ackPromise,
+          new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]).then((ack) => {
+          if (!ack || !ack.stillRegistered) {
+            registerStreamOnSW(streamId, meta, { isReRegistration: true });
+          }
+        });
+      } catch {
+        /* best-effort — a failed ping just means we try again next tick */
+      }
+    }, 20000);
+
     return () => {
       participantAttachedRef.current = false;
       dc.removeEventListener('message', handleParticipantMessage);
+      clearInterval(keepaliveInterval);
     };
   }, [isHost, hostId, dataChannels]);
 
