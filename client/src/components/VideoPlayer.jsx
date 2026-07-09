@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { loadYouTubeAPI } from '../lib/youtubeLoader.js';
 
 const VideoPlayer = forwardRef(function VideoPlayer(
-  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause, subtitleUrl, subtitleLabel },
+  { source, onAutoplayBlocked, onAutoplaySuccess, onMutedAutoplay, onPlaybackError, isHost, onHostPlayPause },
   ref
 ) {
   const containerRef = useRef(null);
@@ -361,17 +361,41 @@ const VideoPlayer = forwardRef(function VideoPlayer(
         t.enabled = (t.id || String(i)) === trackId;
       }
     },
-    // ── Local file only: sidecar subtitle track (host-supplied .srt/.vtt) ──
-    getSubtitleAvailable() {
-      return source?.type === 'file' && !!subtitleUrl;
+    // ── Local file only: embedded subtitle/caption tracks ────────────
+    // These are whatever tracks the browser's own demuxer found inside
+    // the container (e.g. soft subs in an MKV/MP4) — nothing we add
+    // ourselves. Support for which subtitle codecs get exposed this way
+    // varies by browser/container, so an empty list here just means
+    // "this file/browser doesn't expose any," not an error.
+    getSubtitleTracks() {
+      const tracks = fileVideoRef.current?.textTracks;
+      if (!tracks || tracks.length === 0) return [];
+      return Array.from(tracks)
+        .filter((t) => t.kind === 'subtitles' || t.kind === 'captions')
+        .map((t, i) => ({
+          id: t.id || String(i),
+          label: t.label || t.language || `Track ${i + 1}`,
+          language: t.language || '',
+          mode: t.mode,
+        }));
     },
-    isSubtitleShowing() {
-      const track = fileVideoRef.current?.textTracks?.[0];
-      return track?.mode === 'showing';
+    getCurrentSubtitleTrack() {
+      const tracks = fileVideoRef.current?.textTracks;
+      if (!tracks) return null;
+      for (let i = 0; i < tracks.length; i += 1) {
+        if (tracks[i].mode === 'showing') return tracks[i].id || String(i);
+      }
+      return null;
     },
-    setSubtitleShowing(show) {
-      const track = fileVideoRef.current?.textTracks?.[0];
-      if (track) track.mode = show ? 'showing' : 'hidden';
+    setSubtitleTrack(trackId) {
+      const tracks = fileVideoRef.current?.textTracks;
+      if (!tracks) return;
+      for (let i = 0; i < tracks.length; i += 1) {
+        const t = tracks[i];
+        if (t.kind !== 'subtitles' && t.kind !== 'captions') continue;
+        const isTarget = (t.id || String(i)) === trackId;
+        t.mode = isTarget ? 'showing' : 'disabled';
+      }
     },
   }));
 
@@ -609,17 +633,7 @@ const VideoPlayer = forwardRef(function VideoPlayer(
               onPlaybackError?.();
             }}
             style={{ pointerEvents: 'none' }}
-          >
-            {subtitleUrl && (
-              <track
-                key={subtitleUrl}
-                kind="subtitles"
-                src={subtitleUrl}
-                label={subtitleLabel || 'Subtitles'}
-                default={false}
-              />
-            )}
-          </video>
+          />
           {renderSource.isLocal && (
             <div className="local-file-badge" title="Playing from your local device — only you can see this">
               📁 Local file

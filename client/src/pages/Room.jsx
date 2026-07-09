@@ -14,7 +14,6 @@ import SettingsModal from "../components/SettingsModal.jsx";
 import PermissionModal from "../components/PermissionModal.jsx";
 import LocalFilePrompt from "../components/LocalFilePrompt.jsx";
 import { useLocalFileStream } from "../hooks/useLocalFileStream.js";
-import { readSubtitleFileAsVtt } from "../lib/subtitles.js";
 import { App as CapApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 
@@ -64,8 +63,6 @@ export default function Room() {
   // Local file mode: 'none' | 'local-copy' | 'stream'
   const [localFileMode, setLocalFileMode] = useState("none");
   const [hostFile, setHostFile] = useState(null);
-  const [hostSubtitleFile, setHostSubtitleFile] = useState(null);
-  const [hostSubtitleUrl, setHostSubtitleUrl] = useState(null);
   const [localPromptDismissed, setLocalPromptDismissed] = useState(false);
 
   const playerRef = useRef(null);
@@ -158,14 +155,11 @@ export default function Room() {
     streamProgress,
     streamFileToPeer,
     hostSendProgress,
-    subtitleUrl: participantSubtitleUrl,
-    subtitleName: participantSubtitleName,
   } = useLocalFileStream({
     isHost,
     hostId,
     dataChannels,
     file: hostFile,
-    subtitleFile: hostSubtitleFile,
   });
 
   // ── 60-second countdown for cold-start connecting screen ──
@@ -278,9 +272,6 @@ export default function Room() {
         setLocalFileUrl(null);
       }
       setHostFile(null);
-      if (hostSubtitleUrl) URL.revokeObjectURL(hostSubtitleUrl);
-      setHostSubtitleUrl(null);
-      setHostSubtitleFile(null);
     }
     hostLoadingLocalRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -389,9 +380,6 @@ export default function Room() {
     }
   }
 
-  const activeSubtitleUrl = isHost ? hostSubtitleUrl : participantSubtitleUrl;
-  const activeSubtitleName = isHost ? hostSubtitleFile?.name : participantSubtitleName;
-
   function handleLoadVideo(parsed) {
     loadVideo(parsed);
     setDuration(0);
@@ -415,10 +403,6 @@ export default function Room() {
     setLocalFileUrl(objectUrl);
     setLocalPromptDismissed(false);
     setPlaybackError(false);
-
-    if (hostSubtitleUrl) URL.revokeObjectURL(hostSubtitleUrl);
-    setHostSubtitleUrl(null);
-    setHostSubtitleFile(null);
 
     // Tell the video?.url effect NOT to revoke the URL we just set
     hostLoadingLocalRef.current = true;
@@ -446,17 +430,6 @@ export default function Room() {
     setLocalFileUrl(url);
     setLocalFileMode("local-copy");
     setLocalPromptDismissed(true);
-  }
-
-  async function handleLoadSubtitleFile(file) {
-    if (hostSubtitleUrl) URL.revokeObjectURL(hostSubtitleUrl);
-    setHostSubtitleFile(file);
-    try {
-      const vtt = await readSubtitleFileAsVtt(file);
-      setHostSubtitleUrl(URL.createObjectURL(new Blob([vtt], { type: "text/vtt" })));
-    } catch {
-      setHostSubtitleUrl(null);
-    }
   }
 
   function handleUseStream() {
@@ -487,7 +460,6 @@ export default function Room() {
   useEffect(() => {
     return () => {
       if (localFileUrl) URL.revokeObjectURL(localFileUrl);
-      if (hostSubtitleUrl) URL.revokeObjectURL(hostSubtitleUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -812,8 +784,6 @@ export default function Room() {
               onAutoplaySuccess={() => setAutoplayBlocked(false)}
               onMutedAutoplay={() => setMutedAutoplay(true)}
               onPlaybackError={() => setPlaybackError(true)}
-              subtitleUrl={activeSubtitleUrl}
-              subtitleLabel={activeSubtitleName}
             />
 
             {/* Waiting-room knock toasts — host sees these (inside stage-wrap for fullscreen visibility) */}
@@ -1026,9 +996,6 @@ export default function Room() {
             hasVideo={Boolean(videoSource)}
             onLoadVideo={handleLoadVideo}
             onLoadLocalFile={handleLocalFilePick}
-            onLoadSubtitleFile={handleLoadSubtitleFile}
-            subtitleName={hostSubtitleFile?.name}
-            isLocalFileSource={isHost && Boolean(localFileUrl) && isLocalFileSentinel}
           />
 
           {mediaError && <p className="media-warning">{mediaError}</p>}

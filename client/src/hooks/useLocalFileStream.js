@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { readSubtitleFileAsVtt } from '../lib/subtitles.js';
 
 const CHUNK_SIZE = 64 * 1024; // 64 KB - Lowest, safest chunk size for strict WebRTC limits
 
@@ -233,16 +232,11 @@ function resolveContainerInfo(file) {
   return containerInfoCache.get(file);
 }
 
-export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitleFile }) {
+export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
   const [streamUrl,      setStreamUrl]      = useState(null);
   const [streamReady,    setStreamReady]    = useState(false);
   const [streamError,    setStreamError]    = useState(null);
   const [streamProgress, setStreamProgress] = useState(0); // 0–100
-
-  // PARTICIPANT: subtitle track received from the host (if any)
-  const [subtitleUrl,  setSubtitleUrl]  = useState(null);
-  const [subtitleName, setSubtitleName] = useState(null);
-  const subtitleUrlRef = useRef(null); // for revoking the previous blob URL
 
   // HOST: per-peer send progress — Map<peerId, number (0–100)>
   const [hostSendProgress, setHostSendProgress] = useState(new Map());
@@ -250,8 +244,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
   // HOST: always read the latest file inside callbacks/listeners
   const fileRef = useRef(file);
   useEffect(() => { fileRef.current = file; }, [file]);
-  const subtitleFileRef = useRef(subtitleFile);
-  useEffect(() => { subtitleFileRef.current = subtitleFile; }, [subtitleFile]);
 
   // HOST: tracking
   const hostAttachedPeersRef = useRef(new Set());
@@ -279,33 +271,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
   // up-to-date state for the file that's actually loaded right now.
   const prevFileRef = useRef(file);
 
-  // ── HOST: push subtitle updates to everyone already connected ──
-  // Subtitles can be added/changed/removed independently of the video file,
-  // so this doesn't wait for the meta-resend path (which only fires on a
-  // new peer or a video file change).
-  useEffect(() => {
-    if (!isHost) return;
-
-    async function broadcast() {
-      let payload;
-      if (!subtitleFile) {
-        payload = JSON.stringify({ type: 'subtitle-file', name: null, vtt: null });
-      } else {
-        try {
-          const vtt = await readSubtitleFileAsVtt(subtitleFile);
-          payload = JSON.stringify({ type: 'subtitle-file', name: subtitleFile.name, vtt });
-        } catch {
-          return; // unreadable subtitle file — skip, don't disturb video playback
-        }
-      }
-      dataChannels.forEach((dc) => {
-        if (dc.readyState === 'open') dc.send(payload);
-      });
-    }
-
-    broadcast();
-  }, [isHost, subtitleFile, dataChannels]);
-
   // ── HOST: stream the file chunk-by-chunk on demand ──
   useEffect(() => {
     if (!isHost || !file) return;
@@ -327,23 +292,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
       // Reads (and converts, if needed) whatever subtitle file is currently
       // set and sends it as one message — subtitle files are tiny (KBs)
       // compared to the video, so no chunking is needed here.
-      async function sendSubtitle() {
-        if (dc.readyState !== 'open') return;
-        const current = subtitleFileRef.current;
-        if (!current) {
-          dc.send(JSON.stringify({ type: 'subtitle-file', name: null, vtt: null }));
-          return;
-        }
-        try {
-          const vtt = await readSubtitleFileAsVtt(current);
-          if (dc.readyState !== 'open') return;
-          dc.send(JSON.stringify({ type: 'subtitle-file', name: current.name, vtt }));
-        } catch {
-          // Bad/unreadable subtitle file — just skip it silently rather
-          // than block video playback over a caption file.
-        }
-      }
-
       // Tell participant that file metadata is ready right away so they can register the SW stream
       async function sendMeta() {
         const { mimeType, realContainer, unsupportedContainer, videoCodecName, videoCodecString } =
@@ -359,7 +307,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
           videoCodecName,
           videoCodecString
         }));
-        sendSubtitle();
       }
 
       if (dc.readyState === 'open') {
@@ -392,7 +339,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
             videoCodecName,
             videoCodecString
           }));
-          sendSubtitle();
         } else if (msg.type === 'request-range') {
           const { start, end, reqId } = msg;
           let offset = start;
@@ -634,21 +580,6 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
             pendingRequests.current.delete(reqId);
           }
           currentReqIdRef.current = null;
-        } else if (msg.type === 'subtitle-file') {
-          if (subtitleUrlRef.current) {
-            URL.revokeObjectURL(subtitleUrlRef.current);
-            subtitleUrlRef.current = null;
-          }
-          if (msg.vtt) {
-            const blob = new Blob([msg.vtt], { type: 'text/vtt' });
-            const url = URL.createObjectURL(blob);
-            subtitleUrlRef.current = url;
-            setSubtitleUrl(url);
-            setSubtitleName(msg.name || 'Subtitles');
-          } else {
-            setSubtitleUrl(null);
-            setSubtitleName(null);
-          }
         }
       } else if (event.data instanceof ArrayBuffer) {
         const reqId = currentReqIdRef.current;
@@ -723,20 +654,11 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file, subtitl
     };
   }, [isHost, hostId, dataChannels]);
 
-  // Revoke any subtitle blob URL when the component unmounts.
-  useEffect(() => {
-    return () => {
-      if (subtitleUrlRef.current) URL.revokeObjectURL(subtitleUrlRef.current);
-    };
-  }, []);
-
   return {
     streamUrl,
     streamReady,
     streamError,
     streamProgress,
     hostSendProgress,
-    subtitleUrl,
-    subtitleName,
   };
 }

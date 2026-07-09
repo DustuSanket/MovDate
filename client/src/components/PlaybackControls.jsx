@@ -45,8 +45,8 @@ export default function PlaybackControls({
   const [currentCaptionTrack, setCurrentCaptionTrack] = useState(null);
   const [audioTracks, setAudioTracks] = useState([]);
   const [currentAudioTrack, setCurrentAudioTrack] = useState(null);
-  const [subtitleAvailable, setSubtitleAvailable] = useState(false);
-  const [subtitleShowing, setSubtitleShowing] = useState(false);
+  const [subtitleTracks, setSubtitleTracks] = useState([]);
+  const [currentSubtitleTrack, setCurrentSubtitleTrack] = useState(null);
   const settingsMenuRef = useRef(null);
 
   const isYouTube = source?.type === 'youtube';
@@ -65,8 +65,8 @@ export default function PlaybackControls({
       const tracks = playerRef.current.getAudioTracks?.() ?? [];
       setAudioTracks(tracks);
       setCurrentAudioTrack(tracks.find((t) => t.enabled)?.id ?? null);
-      setSubtitleAvailable(playerRef.current.getSubtitleAvailable?.() ?? false);
-      setSubtitleShowing(playerRef.current.isSubtitleShowing?.() ?? false);
+      setSubtitleTracks(playerRef.current.getSubtitleTracks?.() ?? []);
+      setCurrentSubtitleTrack(playerRef.current.getCurrentSubtitleTrack?.() ?? null);
     }
   }, [settingsOpen, isYouTube, isFile, playerRef]);
 
@@ -97,9 +97,9 @@ export default function PlaybackControls({
     setCurrentAudioTrack(trackId);
   }
 
-  function handleToggleSubtitle(show) {
-    playerRef?.current?.setSubtitleShowing?.(show);
-    setSubtitleShowing(show);
+  function handleSelectSubtitleTrack(trackId) {
+    playerRef?.current?.setSubtitleTrack?.(trackId);
+    setCurrentSubtitleTrack(trackId);
   }
 
   function handleScrub(event) {
@@ -212,7 +212,7 @@ export default function PlaybackControls({
           />
         </div>
 
-        {((isHost && isYouTube) || (isFile && (audioTracks.length > 0 || subtitleAvailable))) && (
+        {((isHost && isYouTube) || (isFile && (audioTracks.length > 0 || subtitleTracks.length > 0))) && (
           <div className="playback-settings" ref={settingsMenuRef}>
             <button
               type="button"
@@ -297,23 +297,26 @@ export default function PlaybackControls({
                   </div>
                 )}
 
-                {subtitleAvailable && (
+                {subtitleTracks.length > 0 && (
                   <div className="settings-menu-section">
                     <div className="settings-menu-title">Subtitles</div>
                     <button
                       type="button"
-                      className={`settings-menu-item${!subtitleShowing ? ' is-active' : ''}`}
-                      onClick={() => handleToggleSubtitle(false)}
+                      className={`settings-menu-item${!currentSubtitleTrack ? ' is-active' : ''}`}
+                      onClick={() => handleSelectSubtitleTrack(null)}
                     >
                       Off
                     </button>
-                    <button
-                      type="button"
-                      className={`settings-menu-item${subtitleShowing ? ' is-active' : ''}`}
-                      onClick={() => handleToggleSubtitle(true)}
-                    >
-                      On
-                    </button>
+                    {subtitleTracks.map((track) => (
+                      <button
+                        key={track.id}
+                        type="button"
+                        className={`settings-menu-item${currentSubtitleTrack === track.id ? ' is-active' : ''}`}
+                        onClick={() => handleSelectSubtitleTrack(track.id)}
+                      >
+                        {track.label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>

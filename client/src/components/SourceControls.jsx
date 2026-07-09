@@ -6,9 +6,6 @@ export default function SourceControls({
   hasVideo,
   onLoadVideo,
   onLoadLocalFile,
-  onLoadSubtitleFile,
-  subtitleName,
-  isLocalFileSource,
 }) {
   const [linkInput, setLinkInput] = useState('');
   const [linkError, setLinkError] = useState(null);
@@ -22,28 +19,10 @@ export default function SourceControls({
     return el;
   })[0];
 
-  const subtitleInputRef = useState(() => {
-    if (typeof document === 'undefined') return null;
-    const el = document.createElement('input');
-    el.type = 'file';
-    el.accept = '.srt,.vtt';
-    return el;
-  })[0];
-
   function handleLocalFileClick() {
     if (!fileInputRef) return;
     fileInputRef.onchange = (e) => onLoadLocalFile?.(e);
     fileInputRef.click();
-  }
-
-  function handleSubtitleClick() {
-    if (!subtitleInputRef) return;
-    subtitleInputRef.onchange = (e) => {
-      const file = e.target.files?.[0];
-      if (file) onLoadSubtitleFile?.(file);
-      e.target.value = '';
-    };
-    subtitleInputRef.click();
   }
 
   function handleLoadSubmit(event) {
@@ -86,16 +65,6 @@ export default function SourceControls({
         >
           📁 Play local file
         </button>
-        {isLocalFileSource && (
-          <button
-            type="button"
-            className="local-file-btn"
-            onClick={handleSubtitleClick}
-            title="Attach a .srt or .vtt subtitle file — sent to everyone in the room"
-          >
-            💬 {subtitleName ? `Subtitles: ${subtitleName}` : 'Add subtitles'}
-          </button>
-        )}
       </div>
 
       {linkError && <p className="form-error">{linkError}</p>}
