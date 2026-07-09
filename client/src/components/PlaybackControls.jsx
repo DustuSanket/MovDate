@@ -212,7 +212,7 @@ export default function PlaybackControls({
           />
         </div>
 
-        {((isHost && isYouTube) || (isFile && (audioTracks.length > 0 || subtitleTracks.length > 0))) && (
+        {((isHost && isYouTube) || isFile) && (
           <div className="playback-settings" ref={settingsMenuRef}>
             <button
               type="button"
@@ -281,25 +281,33 @@ export default function PlaybackControls({
 
             {settingsOpen && isFile && (
               <div className="settings-menu">
-                {audioTracks.length > 0 && (
-                  <div className="settings-menu-section">
-                    <div className="settings-menu-title">Audio track</div>
-                    {audioTracks.map((track) => (
-                      <button
-                        key={track.id}
-                        type="button"
-                        className={`settings-menu-item${currentAudioTrack === track.id ? ' is-active' : ''}`}
-                        onClick={() => handleSelectAudioTrack(track.id)}
-                      >
-                        {track.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="settings-menu-section">
+                  <div className="settings-menu-title">Audio track</div>
+                  {audioTracks.length === 0 && (
+                    <div className="settings-menu-empty">
+                      Only one audio track in this file (or your browser doesn't expose multiple tracks)
+                    </div>
+                  )}
+                  {audioTracks.map((track) => (
+                    <button
+                      key={track.id}
+                      type="button"
+                      className={`settings-menu-item${currentAudioTrack === track.id ? ' is-active' : ''}`}
+                      onClick={() => handleSelectAudioTrack(track.id)}
+                    >
+                      {track.label}
+                    </button>
+                  ))}
+                </div>
 
-                {subtitleTracks.length > 0 && (
-                  <div className="settings-menu-section">
-                    <div className="settings-menu-title">Subtitles</div>
+                <div className="settings-menu-section">
+                  <div className="settings-menu-title">Subtitles</div>
+                  {subtitleTracks.length === 0 && (
+                    <div className="settings-menu-empty">
+                      No subtitle tracks found in this file
+                    </div>
+                  )}
+                  {subtitleTracks.length > 0 && (
                     <button
                       type="button"
                       className={`settings-menu-item${!currentSubtitleTrack ? ' is-active' : ''}`}
@@ -307,18 +315,18 @@ export default function PlaybackControls({
                     >
                       Off
                     </button>
-                    {subtitleTracks.map((track) => (
-                      <button
-                        key={track.id}
-                        type="button"
-                        className={`settings-menu-item${currentSubtitleTrack === track.id ? ' is-active' : ''}`}
-                        onClick={() => handleSelectSubtitleTrack(track.id)}
-                      >
-                        {track.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  )}
+                  {subtitleTracks.map((track) => (
+                    <button
+                      key={track.id}
+                      type="button"
+                      className={`settings-menu-item${currentSubtitleTrack === track.id ? ' is-active' : ''}`}
+                      onClick={() => handleSelectSubtitleTrack(track.id)}
+                    >
+                      {track.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
