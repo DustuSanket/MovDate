@@ -419,19 +419,23 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
             }
           }
 
-          if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
-            setStreamError("Service Worker not active. Please refresh the page.");
+          if (!navigator.serviceWorker) {
+            setStreamError("Your browser doesn't support the streaming feature needed here. Try a different browser, or use \"Load my own copy\" instead.");
             return;
           }
 
           const streamId = Math.random().toString(36).substring(2);
           streamInfoRef.current = { id: streamId, meta: msg };
-          
+
           const channel = new MessageChannel();
           serviceWorkerPortRef.current = channel.port1;
-          
+
+          let ackTimeoutId = null;
+          let registerAttempts = 0;
+
           channel.port1.onmessage = (swEvent) => {
             if (swEvent.data.type === 'REGISTER_ACK') {
+              if (ackTimeoutId) clearTimeout(ackTimeoutId);
               setStreamUrl(`/stream-media/${streamId}`);
               setStreamReady(true);
               // Set progress to 100% since we can play immediately and don't need the progress bar anymore
@@ -460,12 +464,61 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
             }
           };
 
-          navigator.serviceWorker.controller.postMessage({
-            type: 'REGISTER_STREAM',
-            streamId,
-            meta: msg
-          }, [channel.port2]);
-          
+          // Registration can silently go nowhere if the Service Worker
+          // isn't controlling this page yet (a common race right after
+          // it's first installed/updated — the fix is normally just one
+          // reload, but we shouldn't leave the person staring at a frozen
+          // 0% with zero explanation). Wait for a controller, retry once,
+          // then time out with a real error instead of hanging forever.
+          async function registerStream() {
+            registerAttempts += 1;
+            let controller = navigator.serviceWorker.controller;
+            if (!controller) {
+              // Give an in-flight activation up to 3s to finish.
+              controller = await Promise.race([
+                new Promise((resolve) => {
+                  navigator.serviceWorker.addEventListener(
+                    'controllerchange',
+                    () => resolve(navigator.serviceWorker.controller),
+                    { once: true }
+                  );
+                }),
+                new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+              ]);
+            }
+            if (!controller) {
+              if (registerAttempts === 1) {
+                // Try registering the SW ourselves in case it never got
+                // registered in this tab at all, then retry once.
+                try {
+                  await navigator.serviceWorker.register('/sw.js');
+                } catch {
+                  /* ignore — we'll surface the real error below if this doesn't help */
+                }
+                return registerStream();
+              }
+              setStreamError(
+                "Couldn't start streaming from the host (the connection needed for it never came up). Please refresh the page and try again, or use \"Load my own copy\" instead."
+              );
+              return;
+            }
+
+            controller.postMessage({
+              type: 'REGISTER_STREAM',
+              streamId,
+              meta: msg,
+            }, [channel.port2]);
+
+            ackTimeoutId = setTimeout(() => {
+              setStreamError(
+                "Streaming from the host timed out. Please refresh the page and try again, or use \"Load my own copy\" instead."
+              );
+            }, 8000);
+          }
+
+          registerStream();
+
+
         } else if (msg.type === 'chunk-header') {
           currentReqIdRef.current = msg.reqId;
         } else if (msg.type === 'chunk-end') {
