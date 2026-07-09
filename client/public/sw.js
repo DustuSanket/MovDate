@@ -30,7 +30,7 @@ self.addEventListener('fetch', event => {
       return event.respondWith(new Response('Stream not found or Service Worker was reloaded.', { status: 404 }));
     }
 
-    event.respondWith(handleStreamRequest(event.request, streamInfo));
+    event.respondWith(handleStreamRequest(event.request, streamInfo, streamId));
   }
 });
 
@@ -45,10 +45,99 @@ self.addEventListener('fetch', event => {
 // error (looks like a codec error, but it's really just a starved fetch).
 const MAX_RANGE_RESPONSE_BYTES = 8 * 1024 * 1024; // 8 MB per response
 
-async function handleStreamRequest(request, streamInfo) {
+// ── Read-ahead cache ──────────────────────────────────────────────────
+// Once we've served a window of bytes, we proactively fetch the *next*
+// window from the host in the background and stash it here. If the
+// <video> element (or a resync-triggered seek) immediately asks for that
+// range — which it usually does, since that's exactly how sequential
+// playback and nearby seeks work — we can answer instantly from memory
+// instead of making the browser wait through another full host round-trip.
+const PREFETCH_BYTES = 6 * 1024 * 1024; // how far ahead to read
+const CACHE_ENTRIES_PER_STREAM = 4;     // ~24MB ceiling per stream
+
+const chunkCache = new Map();        // streamId -> Array<{start, end, data: Uint8Array}>
+const pendingPrefetches = new Set(); // `${streamId}:${start}` currently in flight, to avoid duplicates
+
+function cacheGet(streamId, start, end) {
+  const entries = chunkCache.get(streamId);
+  if (!entries) return null;
+  for (const entry of entries) {
+    if (entry.start <= start && entry.end >= end) {
+      const offset = start - entry.start;
+      const length = end - start + 1;
+      return entry.data.subarray(offset, offset + length);
+    }
+  }
+  return null;
+}
+
+function cachePut(streamId, start, end, data) {
+  if (!chunkCache.has(streamId)) chunkCache.set(streamId, []);
+  const entries = chunkCache.get(streamId);
+  entries.push({ start, end, data });
+  while (entries.length > CACHE_ENTRIES_PER_STREAM) entries.shift();
+}
+
+// Pulls a byte range from the host into a single concatenated buffer,
+// using the same request-range/chunk-header/chunk protocol the live
+// streaming path uses — just consumed into memory instead of teed to a
+// Response's ReadableStream controller.
+function fetchRangeIntoBuffer(streamInfo, start, end) {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+    const reqId = Math.random().toString(36).substring(2);
+    const parts = [];
+    let total = 0;
+
+    channel.port1.onmessage = (event) => {
+      if (event.data.type === 'chunk') {
+        parts.push(new Uint8Array(event.data.data));
+        total += event.data.data.byteLength;
+      } else if (event.data.type === 'end') {
+        const combined = new Uint8Array(total);
+        let offset = 0;
+        for (const part of parts) {
+          combined.set(part, offset);
+          offset += part.byteLength;
+        }
+        resolve(combined);
+      } else if (event.data.type === 'error') {
+        reject(new Error('Prefetch range failed'));
+      }
+    };
+
+    streamInfo.port.postMessage({
+      type: 'request-range',
+      start,
+      end,
+      reqId,
+      replyPort: channel.port2
+    }, [channel.port2]);
+  });
+}
+
+function schedulePrefetch(streamInfo, streamId, afterByte, totalSize) {
+  const start = afterByte + 1;
+  if (start >= totalSize) return; // already at end of file
+
+  const end = Math.min(start + PREFETCH_BYTES - 1, totalSize - 1);
+
+  // Skip if this window is already cached or already being fetched.
+  if (cacheGet(streamId, start, end)) return;
+  const key = `${streamId}:${start}`;
+  if (pendingPrefetches.has(key)) return;
+
+  pendingPrefetches.add(key);
+  fetchRangeIntoBuffer(streamInfo, start, end)
+    .then(data => cachePut(streamId, start, end, data))
+    .catch(() => { /* best-effort — a failed prefetch just means no speed-up, not an error */ })
+    .finally(() => pendingPrefetches.delete(key));
+}
+
+async function handleStreamRequest(request, streamInfo, streamId) {
   const rangeHeader = request.headers.get('Range');
   const totalSize = streamInfo.meta.size;
-  
+
   let start = 0;
   let end = totalSize - 1;
   let openEnded = true;
@@ -71,7 +160,7 @@ async function handleStreamRequest(request, streamInfo) {
   if (openEnded || (end - start + 1) > MAX_RANGE_RESPONSE_BYTES) {
     end = Math.min(start + MAX_RANGE_RESPONSE_BYTES - 1, totalSize - 1);
   }
-  
+
   if (start >= totalSize || end >= totalSize || start > end) {
     return new Response(null, {
       status: 416,
@@ -80,18 +169,46 @@ async function handleStreamRequest(request, streamInfo) {
   }
 
   const chunkSize = end - start + 1;
+  const headers = new Headers({
+    'Content-Type': streamInfo.meta.mimeType || streamInfo.meta.type || 'application/octet-stream',
+    'Accept-Ranges': 'bytes',
+    'Content-Length': chunkSize.toString(),
+  });
+  if (rangeHeader) headers.set('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+  const status = rangeHeader ? 206 : 200;
 
+  // ── Fast path: already have this window read-ahead in memory ──
+  const cached = cacheGet(streamId, start, end);
+  if (cached) {
+    // We're already this far ahead — start reading further ahead too.
+    schedulePrefetch(streamInfo, streamId, end, totalSize);
+    return new Response(cached, { status, headers });
+  }
+
+  // ── Slow path: stream live from the host, tee into cache as we go ──
   let streamReqId;
+  const collected = [];
+  let collectedBytes = 0;
+
   const stream = new ReadableStream({
     start(controller) {
       const channel = new MessageChannel();
       streamReqId = Math.random().toString(36).substring(2);
-      
+
       channel.port1.onmessage = (event) => {
         if (event.data.type === 'chunk') {
-          controller.enqueue(new Uint8Array(event.data.data));
+          const bytes = new Uint8Array(event.data.data);
+          controller.enqueue(bytes);
+          collected.push(bytes);
+          collectedBytes += bytes.byteLength;
         } else if (event.data.type === 'end') {
           controller.close();
+          // Cache what we just delivered, then read ahead for next time.
+          const combined = new Uint8Array(collectedBytes);
+          let offset = 0;
+          for (const part of collected) { combined.set(part, offset); offset += part.byteLength; }
+          cachePut(streamId, start, end, combined);
+          schedulePrefetch(streamInfo, streamId, end, totalSize);
         } else if (event.data.type === 'error') {
           controller.error(new Error('Stream error'));
         }
@@ -106,7 +223,6 @@ async function handleStreamRequest(request, streamInfo) {
       }, [channel.port2]);
     },
     cancel() {
-      // Use streamInfo.port to send cancel to main thread
       streamInfo.port.postMessage({
         type: 'cancel-range',
         reqId: streamReqId
@@ -114,16 +230,5 @@ async function handleStreamRequest(request, streamInfo) {
     }
   });
 
-  const headers = new Headers({
-    'Content-Type': streamInfo.meta.mimeType || streamInfo.meta.type || 'application/octet-stream',
-    'Accept-Ranges': 'bytes',
-    'Content-Length': chunkSize.toString(),
-  });
-
-  if (rangeHeader) {
-    headers.set('Content-Range', `bytes ${start}-${end}/${totalSize}`);
-    return new Response(stream, { status: 206, headers });
-  } else {
-    return new Response(stream, { status: 200, headers });
-  }
+  return new Response(stream, { status, headers });
 }
