@@ -220,6 +220,25 @@ export function registerSocketHandlers(io) {
       });
     });
 
+    // A participant streaming the host's local file is buffering/stalled
+    // on their end (their internet, not the host's). Relay to the host
+    // only, so the host can show a "waiting for X" indicator and/or pause
+    // for everyone until they catch back up.
+    socket.on('video:buffering', ({ roomId, isBuffering }) => {
+      const room = getRoom(roomId);
+      if (!room || isHost(room, socket.id)) return;
+      const participant = room.participants.get(socket.id);
+      if (!participant) return;
+      const hostSocket = room.hostId;
+      if (hostSocket) {
+        io.to(hostSocket).emit('video:participant-buffering', {
+          participantId: socket.id,
+          participantName: participant.name || 'Someone',
+          isBuffering: Boolean(isBuffering),
+        });
+      }
+    });
+
     socket.on('video:pause-request', ({ roomId }) => {
       const room = getRoom(roomId);
       if (!room || isHost(room, socket.id)) return;
