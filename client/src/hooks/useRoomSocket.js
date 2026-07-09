@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { socket } from '../lib/socket.js';
-import { playKnockSound, playJoinSound } from '../lib/audio.js';
+import { playKnockSound, playJoinSound, playChatSound } from '../lib/audio.js';
 
 export function useRoomSocket(roomId, name, options = {}) {
   const [participants, setParticipants] = useState([]);
@@ -79,7 +79,8 @@ export function useRoomSocket(roomId, name, options = {}) {
         protected: options.protected, 
         hostSecret: options.hostSecret,
         clientId: clientIdRef.current,
-        isCreating: options.isCreating
+        isCreating: options.isCreating,
+        kind: options.kind
       }, (response) => {
         if (response?.error) {
           setConnectionError(response.error);
@@ -216,6 +217,10 @@ export function useRoomSocket(roomId, name, options = {}) {
 
     function handleChatMessage(message) {
       setMessages((prev) => [...prev.slice(-99), message]);
+      // Only ping for messages from someone else — not our own sent message.
+      if (message?.authorId && message.authorId !== socket.id) {
+        playChatSound();
+      }
     }
 
     function handleMediaState({ id, muted, cameraOff }) {

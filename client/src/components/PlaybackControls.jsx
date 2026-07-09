@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 function formatTime(rawSeconds = 0) {
   const seconds = Number.isFinite(rawSeconds) && rawSeconds > 0 ? rawSeconds : 0;
@@ -8,6 +8,19 @@ function formatTime(rawSeconds = 0) {
   const pad = (n) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
+
+const QUALITY_LABELS = {
+  highres: 'Highest',
+  hd2160: '2160p (4K)',
+  hd1440: '1440p',
+  hd1080: '1080p',
+  hd720: '720p',
+  large: '480p',
+  medium: '360p',
+  small: '240p',
+  tiny: '144p',
+  auto: 'Auto',
+};
 
 export default function PlaybackControls({
   isHost,
@@ -20,9 +33,51 @@ export default function PlaybackControls({
   onRequestPause,
   hasVideo,
   onVolumeChange,
+  source,
+  playerRef,
 }) {
   const [pauseRequested, setPauseRequested] = useState(false);
   const [volume, setVolume] = useState(100);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [qualities, setQualities] = useState([]);
+  const [currentQuality, setCurrentQuality] = useState(null);
+  const [captionTracks, setCaptionTracks] = useState([]);
+  const [currentCaptionTrack, setCurrentCaptionTrack] = useState(null);
+  const settingsMenuRef = useRef(null);
+
+  const isYouTube = source?.type === 'youtube';
+
+  // Refresh the available qualities/captions each time the menu opens —
+  // YouTube only knows these once the video has actually started buffering.
+  useEffect(() => {
+    if (!settingsOpen || !isYouTube || !playerRef?.current) return;
+    setQualities(playerRef.current.getAvailableQualities?.() ?? []);
+    setCurrentQuality(playerRef.current.getCurrentQuality?.() ?? null);
+    setCaptionTracks(playerRef.current.getCaptionTracks?.() ?? []);
+    setCurrentCaptionTrack(playerRef.current.getCurrentCaptionTrack?.() ?? null);
+  }, [settingsOpen, isYouTube, playerRef]);
+
+  // Close the menu on outside click.
+  useEffect(() => {
+    if (!settingsOpen) return undefined;
+    function handleClickOutside(event) {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setSettingsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [settingsOpen]);
+
+  function handleSelectQuality(level) {
+    playerRef?.current?.setQuality?.(level);
+    setCurrentQuality(level);
+  }
+
+  function handleSelectCaptionTrack(track) {
+    playerRef?.current?.setCaptionTrack?.(track);
+    setCurrentCaptionTrack(track && track.languageCode ? track : null);
+  }
 
   function handleScrub(event) {
     if (!isHost || !duration) return;
@@ -133,6 +188,75 @@ export default function PlaybackControls({
             aria-label="Volume"
           />
         </div>
+
+        {isHost && isYouTube && (
+          <div className="playback-settings" ref={settingsMenuRef}>
+            <button
+              type="button"
+              className="settings-btn"
+              onClick={() => setSettingsOpen((v) => !v)}
+              aria-label="Video settings"
+              aria-expanded={settingsOpen}
+              title="Quality & captions"
+            >
+              ⚙
+            </button>
+
+            {settingsOpen && (
+              <div className="settings-menu">
+                <div className="settings-menu-section">
+                  <div className="settings-menu-title">Quality</div>
+                  <button
+                    type="button"
+                    className={`settings-menu-item${!currentQuality || currentQuality === 'auto' ? ' is-active' : ''}`}
+                    onClick={() => handleSelectQuality('default')}
+                  >
+                    Auto
+                  </button>
+                  {qualities.length === 0 && (
+                    <div className="settings-menu-empty">Loading…</div>
+                  )}
+                  {qualities.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      className={`settings-menu-item${currentQuality === level ? ' is-active' : ''}`}
+                      onClick={() => handleSelectQuality(level)}
+                    >
+                      {QUALITY_LABELS[level] || level}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="settings-menu-section">
+                  <div className="settings-menu-title">Captions</div>
+                  <button
+                    type="button"
+                    className={`settings-menu-item${!currentCaptionTrack ? ' is-active' : ''}`}
+                    onClick={() => handleSelectCaptionTrack(null)}
+                  >
+                    Off
+                  </button>
+                  {captionTracks.length === 0 && (
+                    <div className="settings-menu-empty">No captions available</div>
+                  )}
+                  {captionTracks.map((track) => (
+                    <button
+                      key={track.languageCode}
+                      type="button"
+                      className={`settings-menu-item${
+                        currentCaptionTrack?.languageCode === track.languageCode ? ' is-active' : ''
+                      }`}
+                      onClick={() => handleSelectCaptionTrack(track)}
+                    >
+                      {track.displayName || track.languageName || track.languageCode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {!isHost && <span className="host-only-tag">Host controls playback</span>}
       </div>

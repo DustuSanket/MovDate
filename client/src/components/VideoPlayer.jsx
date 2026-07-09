@@ -285,6 +285,58 @@ const VideoPlayer = forwardRef(function VideoPlayer(
       if (source?.type === 'youtube') return ytPlayerRef.current?.getDuration?.() ?? 0;
       return fileVideoRef.current?.duration ?? 0;
     },
+    // ── YouTube-only: quality + captions (host-only controls, wired up
+    // from PlaybackControls). YouTube's IFrame API doesn't expose audio
+    // track switching publicly, so that's intentionally not offered here.
+    getAvailableQualities() {
+      if (source?.type !== 'youtube') return [];
+      try {
+        return ytPlayerRef.current?.getAvailableQualityLevels?.() ?? [];
+      } catch {
+        return [];
+      }
+    },
+    getCurrentQuality() {
+      if (source?.type !== 'youtube') return null;
+      try {
+        return ytPlayerRef.current?.getPlaybackQuality?.() ?? null;
+      } catch {
+        return null;
+      }
+    },
+    setQuality(level) {
+      if (source?.type !== 'youtube') return;
+      try {
+        ytPlayerRef.current?.setPlaybackQuality?.(level);
+      } catch {
+        /* ignore — not all videos support forced quality */
+      }
+    },
+    getCaptionTracks() {
+      if (source?.type !== 'youtube') return [];
+      try {
+        return ytPlayerRef.current?.getOption?.('captions', 'tracklist') ?? [];
+      } catch {
+        return [];
+      }
+    },
+    getCurrentCaptionTrack() {
+      if (source?.type !== 'youtube') return null;
+      try {
+        return ytPlayerRef.current?.getOption?.('captions', 'track') ?? null;
+      } catch {
+        return null;
+      }
+    },
+    setCaptionTrack(track) {
+      // Pass null/undefined (or {}) to turn captions off.
+      if (source?.type !== 'youtube') return;
+      try {
+        ytPlayerRef.current?.setOption?.('captions', 'track', track || {});
+      } catch {
+        /* ignore */
+      }
+    },
   }));
 
   // ── YouTube setup ──────────────────────────────────────────────────

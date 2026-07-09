@@ -88,6 +88,7 @@ export default function Meet() {
     protected: wantsProtected, 
     hostSecret, 
     isCreating,
+    kind: 'meet',
     enabled: step !== 'prejoin',
     onForceMute: () => !muted && toggleMic(),
     onForceCameraOff: () => !cameraOff && toggleCamera(),
@@ -181,7 +182,7 @@ export default function Meet() {
 
   if (!name) {
     return (
-      <div className="join-gate">
+      <div className="join-gate theme-meet">
         <div className="home-card">
           <h2>Join this Meeting</h2>
           <p>Meeting {roomId}</p>
@@ -243,7 +244,7 @@ export default function Meet() {
 
   // ─── Main Meeting UI ────────────────────────────────────────────────────────
   return (
-    <div className={`room meet-mode ${activeSidebar ? 'has-sidebar' : ''}`}>
+    <div className={`room meet-mode theme-meet ${activeSidebar ? 'has-sidebar' : ''}`}>
       <div 
         className={`room-stage meet-stage ${!controlsVisible && !activeSidebar && !deviceSettingsOpen && !layoutModalOpen ? 'hide-controls' : ''}`}
         onMouseMove={handleMouseMove}

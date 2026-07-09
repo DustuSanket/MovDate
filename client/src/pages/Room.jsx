@@ -45,7 +45,7 @@ export default function Room() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [overlayHidden, setOverlayHidden] = useState(false);
   const [controlsHidden, setControlsHidden] = useState(false);
-  const [isHoveringStage, setIsHoveringStage] = useState(false);
+  const controlsHoverRef = useRef(false);
   const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [mediaPerms, setMediaPerms] = useState(() => {
     try {
@@ -114,6 +114,7 @@ export default function Room() {
     protected: wantsProtected,
     hostSecret,
     isCreating,
+    kind: 'date',
   });
 
   useEffect(() => {
@@ -294,7 +295,7 @@ export default function Room() {
   }, []);
 
   useEffect(() => {
-    if (!isFullscreen) {
+    if (!video?.url) {
       setControlsHidden(false);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       return undefined;
@@ -303,8 +304,12 @@ export default function Room() {
     function resetIdleTimer() {
       setControlsHidden(false);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (deviceSettingsOpen) return;
-      idleTimerRef.current = setTimeout(() => setControlsHidden(true), 3000);
+      if (deviceSettingsOpen || controlsHoverRef.current) return;
+      idleTimerRef.current = setTimeout(() => {
+        // Double-check: don't hide if the pointer ended up parked on a
+        // control between the timer firing and now.
+        if (!controlsHoverRef.current) setControlsHidden(true);
+      }, 2000);
     }
 
     resetIdleTimer();
@@ -319,7 +324,23 @@ export default function Room() {
       el?.removeEventListener("touchstart", resetIdleTimer);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [isFullscreen, deviceSettingsOpen]);
+  }, [video?.url, deviceSettingsOpen]);
+
+  // While the pointer is resting on an actual control (playback bar,
+  // fullscreen toggle, quality/caption menu, etc.), don't let the idle
+  // timer hide the overlay out from under it.
+  function handleControlsMouseEnter() {
+    controlsHoverRef.current = true;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    setControlsHidden(false);
+  }
+  function handleControlsMouseLeave() {
+    controlsHoverRef.current = false;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      if (!controlsHoverRef.current) setControlsHidden(true);
+    }, 2000);
+  }
 
   async function handleSwitchMic(deviceId) {
     const newTrack = await switchMic(deviceId);
@@ -750,11 +771,9 @@ export default function Room() {
         <section className="room-main">
           <div
             className={`video-stage-wrap${isFullscreen ? " video-stage-wrap--fullscreen" : ""}${
-              isFullscreen && controlsHidden ? " controls-hidden" : ""
+              controlsHidden ? " controls-hidden" : ""
             }`}
             ref={stageWrapRef}
-            onMouseEnter={() => setIsHoveringStage(true)}
-            onMouseLeave={() => setIsHoveringStage(false)}
           >
             <VideoPlayer
               ref={playerRef}
@@ -850,15 +869,36 @@ export default function Room() {
               />
             )}
 
-            <button
-              type="button"
-              className="fullscreen-toggle"
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "Exit full screen" : "Full screen"}
-              aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+            <div
+              className="video-controls-hover-zone"
+              onMouseEnter={handleControlsMouseEnter}
+              onMouseLeave={handleControlsMouseLeave}
             >
-              {isFullscreen ? "⤡" : "⤢"}
-            </button>
+              <button
+                type="button"
+                className="fullscreen-toggle"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? "Exit full screen" : "Full screen"}
+                aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+              >
+                {isFullscreen ? "⤡" : "⤢"}
+              </button>
+
+              <PlaybackControls
+                isHost={isHost}
+                isPlaying={Boolean(video?.isPlaying)}
+                currentTime={displayTime}
+                duration={duration}
+                onTogglePlay={handleTogglePlay}
+                onSeek={handleSeek}
+                onSkip={handleSkip}
+                onRequestPause={requestPause}
+                hasVideo={Boolean(videoSource)}
+                onVolumeChange={(vol) => playerRef.current?.setVolume?.(vol)}
+                source={videoSource}
+                playerRef={playerRef}
+              />
+            </div>
 
             {autoplayBlocked && (
               <button
@@ -923,20 +963,6 @@ export default function Room() {
               </div>
             )}
 
-            {(!isFullscreen ? isHoveringStage : true) && (
-              <PlaybackControls
-                isHost={isHost}
-                isPlaying={Boolean(video?.isPlaying)}
-                currentTime={displayTime}
-                duration={duration}
-                onTogglePlay={handleTogglePlay}
-                onSeek={handleSeek}
-                onSkip={handleSkip}
-                onRequestPause={requestPause}
-                hasVideo={Boolean(videoSource)}
-                onVolumeChange={(vol) => playerRef.current?.setVolume?.(vol)}
-              />
-            )}
 
             {isFullscreen && !overlayHidden && (
               <CallOverlay
