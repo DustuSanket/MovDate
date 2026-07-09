@@ -398,13 +398,27 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
   }, [isHost, dataChannels, file]);
 
   // ── PARTICIPANT: unconditionally listen to the host's stream ──
+  // IMPORTANT: `dataChannels` is a Map that useMeshCall replaces (new
+  // reference) whenever ANY peer's data channel changes — including peers
+  // that have nothing to do with us (someone else's connection retrying,
+  // a third participant joining/leaving, etc). Depending on the whole Map
+  // here meant every one of those unrelated events reset OUR stream too:
+  // cleanup ran, participantAttachedRef went false, streamProgress snapped
+  // back to 0%, and we re-registered a brand new streamId with the SW even
+  // though our own link to the host never dropped. That's invisible with
+  // only one other participant (little churn) but gets worse the more
+  // people are in the room. Depending on the specific RTCDataChannel
+  // instance for the host — not the Map wrapping it — means this effect
+  // only re-runs when OUR channel to the host actually changes.
+  const hostDataChannel = hostId ? dataChannels.get(hostId) : undefined;
+
   useEffect(() => {
     if (isHost || !hostId) return;
 
     // We only attach ONCE per host. If we are already attached, do nothing.
     if (participantAttachedRef.current) return;
 
-    const dc = dataChannels.get(hostId);
+    const dc = hostDataChannel;
     if (!dc) return; // Wait until host DC is created
 
     participantAttachedRef.current = true;
@@ -652,7 +666,7 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
       dc.removeEventListener('message', handleParticipantMessage);
       clearInterval(keepaliveInterval);
     };
-  }, [isHost, hostId, dataChannels]);
+  }, [isHost, hostId, hostDataChannel]);
 
   return {
     streamUrl,

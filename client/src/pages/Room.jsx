@@ -488,29 +488,14 @@ export default function Room() {
     return undefined;
   }, [isHost, isLocalFileSentinel, localFileMode, sendBufferingState]);
 
-  // Host-side: while any streaming participant is buffering, auto-pause so
-  // the room waits for them, then auto-resume once everyone has caught up.
-  const autoPausedForBufferingRef = useRef(false);
+  // Host-side: just show who's buffering — playback stays fully under the
+  // host's manual control. We tried auto-pausing/auto-resuming here, but it
+  // fought with the host's own play/pause actions and made playback glitch
+  // (a buffering blip mid-pause could trigger a resume that undid the
+  // host's own pause, etc). Now it's purely informational: the indicator
+  // appears while someone's stalled and disappears once they catch up, and
+  // pressing play/pause is entirely up to the host either way.
   const bufferingNames = Object.values(bufferingParticipants);
-  useEffect(() => {
-    if (!isHost) return;
-    const anyoneBuffering = bufferingNames.length > 0;
-
-    if (anyoneBuffering && video?.isPlaying && !autoPausedForBufferingRef.current) {
-      const time = playerRef.current?.getCurrentTime?.() ?? displayTime;
-      autoPausedForBufferingRef.current = true;
-      pause(time);
-      playerRef.current?.pauseAt(time);
-    } else if (!anyoneBuffering && autoPausedForBufferingRef.current) {
-      autoPausedForBufferingRef.current = false;
-      const time = playerRef.current?.getCurrentTime?.() ?? displayTime;
-      play(time);
-      playerRef.current?.playAt(time);
-      setAutoplayBlocked(false);
-      setMutedAutoplay(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bufferingNames.join("|"), isHost]);
 
   function handleHostPlayPause({ kind, time }) {
     if (kind === "play") {
