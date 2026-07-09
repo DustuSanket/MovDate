@@ -18,6 +18,11 @@ export function getOrCreateRoom(roomId, options = {}) {
       hostId: null,
       hostSecret: nanoid(16),
       createdAt: Date.now(),
+      // 'date' (watch-together room) or 'meet' (video call only). Set once,
+      // by whoever creates the room, so a date-room code can't be joined
+      // through the meet flow (or vice versa) even though both share the
+      // same room-id namespace.
+      kind: options.kind === 'meet' ? 'meet' : 'date',
       // Protected room (waiting room) support
       protected: options.protected || false,
       waitingRoom: new Map(), // socketId -> { name, socketId }
@@ -78,6 +83,7 @@ export function roomSnapshot(room) {
   return {
     id: room.id,
     hostId: room.hostId,
+    kind: room.kind,
     protected: room.protected,
     video: { ...room.video },
     participants: Array.from(room.participants.values()),

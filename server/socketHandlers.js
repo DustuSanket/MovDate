@@ -29,22 +29,31 @@ export function registerSocketHandlers(io) {
     });
 
     // ─── Join room ────────────────────────────────────────────────────────────
-    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret, clientId, isCreating }, callback) => {
+    socket.on('room:join', ({ roomId, name, protected: wantsProtected, hostSecret, clientId, isCreating, kind }, callback) => {
       if (!roomId || typeof roomId !== 'string' || !roomId.trim()) {
         callback?.({ error: 'A room code is required.' });
         return;
       }
 
       const cleanRoomId = roomId.trim().slice(0, 64);
-      
+      const requestedKind = kind === 'meet' ? 'meet' : 'date';
+
       let room = getRoom(cleanRoomId);
       if (!room) {
         if (!isCreating) {
           callback?.({ error: 'Room not found. Please check the code and try again.' });
           return;
         }
-        // Pass protected flag only when creating the room (first joiner = host)
-        room = getOrCreateRoom(cleanRoomId, { protected: Boolean(wantsProtected) });
+        // Pass protected flag + kind only when creating the room (first joiner = host)
+        room = getOrCreateRoom(cleanRoomId, { protected: Boolean(wantsProtected), kind: requestedKind });
+      }
+
+      // A date-room code can't be joined via the meet flow, and vice versa —
+      // even though they share the same id namespace on the server.
+      if (room.kind !== requestedKind) {
+        const label = room.kind === 'meet' ? 'meeting' : 'date';
+        callback?.({ error: `This code belongs to a ${label}, not a ${requestedKind === 'meet' ? 'meeting' : 'date'}. Try joining from the right tab.`, wrongKind: room.kind });
+        return;
       }
 
       // Clean up ghosts if reconnecting
