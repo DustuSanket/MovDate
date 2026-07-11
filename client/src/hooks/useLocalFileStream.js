@@ -546,6 +546,22 @@ export function useLocalFileStream({ isHost, hostId, dataChannels, file }) {
           // whatever was previously loaded so it doesn't linger onscreen.
           setStreamError(null);
 
+          // IMPORTANT: also clear the PREVIOUS file's ready/url/progress
+          // state right now, before registering the new one. Without this,
+          // switching files mid-session left `streamReady` stuck `true`
+          // (and `streamUrl` pointing at the old, now-defunct stream) from
+          // the moment this message arrived until the new REGISTER_ACK
+          // came back. Since the "dismiss the prompt" effect in Room.jsx
+          // fires as soon as `streamReady && localFileMode === 'stream'`,
+          // a participant picking "Stream from host" for the NEW file
+          // could have the prompt instantly vanish using the OLD file's
+          // stale streamReady flag, then try to play a stream URL that no
+          // longer pointed at anything real — looking exactly like a
+          // "picker is broken" moment even though the click itself worked.
+          setStreamReady(false);
+          setStreamUrl(null);
+          setStreamProgress(0);
+
           if (msg.unsupportedContainer) {
             setStreamError(
               `The host's file is an ${(msg.realContainer || 'unsupported').toUpperCase()} container, which browsers can't play directly. Ask the host to convert it to .mp4 first.`
